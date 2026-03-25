@@ -973,11 +973,11 @@ function buildMatchData(rows){
       first:{t:h1mkl.length,w:h1won.length,
         ctrl:pct(h1won.filter(r=>r['Retention After Win']===RET_CTRL).length,h1won.length),
         immTO:pct(h1won.filter(isImmRet).length,h1won.length),
-        p2s:pct(h1won.filter(r=>['Score','Wide','Shot Saved','Drop Shot'].includes(r['Resulting Outcome'])).length,h1won.length)},
+        p2s:pct(h1won.filter(r=>['Score','Wide','Shot Saved','Drop Shot'].includes(r['Resulting Outcome'])||['Score','Wide','Shot Saved','Drop Shot'].includes(r['Resulting Action'])).length,h1won.length)},
       second:{t:h2mkl.length,w:h2won.length,
         ctrl:pct(h2won.filter(r=>r['Retention After Win']===RET_CTRL).length,h2won.length),
         immTO:pct(h2won.filter(isImmRet).length,h2won.length),
-        p2s:pct(h2won.filter(r=>['Score','Wide','Shot Saved','Drop Shot'].includes(r['Resulting Outcome'])).length,h2won.length)}
+        p2s:pct(h2won.filter(r=>['Score','Wide','Shot Saved','Drop Shot'].includes(r['Resulting Outcome'])||['Score','Wide','Shot Saved','Drop Shot'].includes(r['Resulting Action'])).length,h2won.length)}
     };
 
     const oppByZone={};
