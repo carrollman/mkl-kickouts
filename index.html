@@ -562,13 +562,64 @@ tr:hover td{background:var(--surface2)}
         <div class="glossary-card field-card" data-terms="zone Z1 Z2 Z3 Z4 Z5 Z6 Z7 Z8 Z9 map grid area pitch">
           <div class="glossary-term">Zone Grid (Z1&ndash;Z9) <span class="glossary-tag field">Field Term</span></div>
           <div class="glossary-def">The pitch is divided into a 3&times;3 grid of nine zones numbered Z1 to Z9. This tells us exactly where each kickout was aimed and won or lost. Zones 1&ndash;3 are in the opposition half. Zones 4&ndash;6 are midfield. Zones 7&ndash;9 are in our own half near the kickout taker.</div>
-          <div class="glossary-example" style="font-family:monospace;letter-spacing:1px">
-            <strong>Zone layout (from GK perspective):</strong><br><br>
-            &nbsp;Z1 &nbsp;| &nbsp;Z2 &nbsp;| &nbsp;Z3 &nbsp;&nbsp;&#8592; Opposition half<br>
-            &mdash;&mdash;&mdash;+&mdash;&mdash;&mdash;+&mdash;&mdash;&mdash;<br>
-            &nbsp;Z4 &nbsp;| &nbsp;Z5 &nbsp;| &nbsp;Z6 &nbsp;&nbsp;&#8592; Midfield<br>
-            &mdash;&mdash;&mdash;+&mdash;&mdash;&mdash;+&mdash;&mdash;&mdash;<br>
-            &nbsp;Z7 &nbsp;| &nbsp;Z8 &nbsp;| &nbsp;Z9 &nbsp;&nbsp;&#8592; Own half (near GK)
+          <div class="glossary-example">
+            <strong>Zone layout (from GK perspective):</strong>
+            <div style="margin-top:12px;display:inline-block;width:100%">
+              <!-- Pitch visual -->
+              <div style="background:#2d5a27;border:2px solid #fff;border-radius:6px;
+                padding:10px;position:relative;max-width:340px;margin:0 auto;font-family:monospace">
+                <!-- Goal at top -->
+                <div style="text-align:center;margin-bottom:8px;color:#fff;font-size:10px;letter-spacing:.5px">
+                  &#9645; OPPOSITION GOAL &#9645;
+                </div>
+                <!-- Opposition half label -->
+                <div style="font-size:9px;color:rgba(255,255,255,.5);text-align:right;margin-bottom:2px;letter-spacing:.4px">
+                  Opposition half &#8593;
+                </div>
+                <!-- Row 1: Z9 Z8 Z7 — Opposition half (top) -->
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;margin-bottom:3px">
+                  <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);
+                    border-radius:3px;padding:8px 4px;text-align:center;font-size:12px;font-weight:700;color:#fff">Z9</div>
+                  <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);
+                    border-radius:3px;padding:8px 4px;text-align:center;font-size:12px;font-weight:700;color:#fff">Z8</div>
+                  <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);
+                    border-radius:3px;padding:8px 4px;text-align:center;font-size:12px;font-weight:700;color:#fff">Z7</div>
+                </div>
+                <!-- Midfield label -->
+                <div style="font-size:9px;color:rgba(255,255,255,.5);text-align:right;margin-bottom:2px;letter-spacing:.4px">
+                  Midfield
+                </div>
+                <!-- Row 2: Z6 Z5 Z4 — Midfield -->
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;margin-bottom:3px">
+                  <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);
+                    border-radius:3px;padding:8px 4px;text-align:center;font-size:12px;font-weight:700;color:#fff">Z6</div>
+                  <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);
+                    border-radius:3px;padding:8px 4px;text-align:center;font-size:12px;font-weight:700;color:#fff">Z5</div>
+                  <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);
+                    border-radius:3px;padding:8px 4px;text-align:center;font-size:12px;font-weight:700;color:#fff">Z4</div>
+                </div>
+                <!-- Own half label -->
+                <div style="font-size:9px;color:rgba(255,255,255,.5);text-align:right;margin-bottom:2px;letter-spacing:.4px">
+                  Own half &#8595;
+                </div>
+                <!-- Row 3: Z3 Z2 Z1 — Nearest GK (bottom) -->
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;margin-bottom:8px">
+                  <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);
+                    border-radius:3px;padding:8px 4px;text-align:center;font-size:12px;font-weight:700;color:#fff">Z3</div>
+                  <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);
+                    border-radius:3px;padding:8px 4px;text-align:center;font-size:12px;font-weight:700;color:#fff">Z2</div>
+                  <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);
+                    border-radius:3px;padding:8px 4px;text-align:center;font-size:12px;font-weight:700;color:#fff">Z1</div>
+                </div>
+                <!-- GK at bottom -->
+                <div style="text-align:center;color:#fff;font-size:10px;letter-spacing:.5px">
+                  &#9645; MKL GOAL (GK position) &#9645;
+                </div>
+              </div>
+              <div style="font-size:10px;color:var(--muted);margin-top:8px;text-align:center">
+                Left column = left side of pitch &middot; Right column = right side of pitch (from GK perspective)
+              </div>
+            </div>
           </div>
         </div>
 
