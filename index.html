@@ -772,7 +772,6 @@ tr:hover td{background:var(--surface2)}
 </div>
 
 <script>
-
 function filterGlossary(query){
   const q=query.toLowerCase().trim();
   const cards=document.querySelectorAll('.glossary-card');
@@ -826,22 +825,42 @@ function makeChart(id,type,labels,datasets,opts={}){
 
 // ══ CSV PARSER ══
 function parseCSV(text){
-  // Handle both \n and \r\n line endings
+  // Normalise line endings
   const lines=text.trim().replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
   const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,''));
-  return lines.slice(1).map(line=>{
-    const vals=[]; let cur='',inQ=false;
-    for(let i=0;i<line.length;i++){
+
+  function parseLine(line){
+    const vals=[]; let cur='',inQ=false,i=0;
+    while(i<line.length){
       const ch=line[i];
-      if(ch==='"'){inQ=!inQ;}
-      else if(ch===','&&!inQ){vals.push(cur.trim());cur='';}
-      else cur+=ch;
+      if(ch==='"'){
+        if(inQ && line[i+1]==='"'){cur+='"';i+=2;continue;} // escaped quote
+        inQ=!inQ; i++; continue;
+      }
+      if(ch===','&&!inQ){vals.push(cur.trim());cur='';i++;continue;}
+      cur+=ch; i++;
     }
     vals.push(cur.trim());
+    return vals;
+  }
+
+  const rows=[];
+  for(let i=1;i<lines.length;i++){
+    if(!lines[i].trim()) continue;
+    const vals=parseLine(lines[i]);
     const row={};
-    headers.forEach((h,i)=>row[h]=(vals[i]||'').replace(/^"|"$/g,''));
-    return row;
-  }).filter(r=>r['Match ID']&&r['Match ID'].trim()!=='');
+    headers.forEach((h,j)=>{
+      let v=(vals[j]||'').trim();
+      if(v.startsWith('"')&&v.endsWith('"')) v=v.slice(1,-1).replace(/""/g,'"');
+      row[h]=v;
+    });
+    // Validation guards
+    if(!row['Match ID']||!row['Match ID'].trim()) continue;
+    if(!['MKL','Opp'].includes(row['Team'])) continue;
+    if(!['1st','2nd'].includes((row['Half']||'').trim())) continue;
+    rows.push(row);
+  }
+  return rows;
 }
 
 // ══ FETCH WITH CORS FALLBACK ══
@@ -1015,12 +1034,38 @@ function buildMatchData(rows){
       });
     });
 
+    // Pre-compute exact subsets for decision tree
+    const h2HeavyLong=mkl.filter(r=>r['Half'].trim()==='2nd'&&r['Pressure on Receiver']==='Heavy'&&r['Length']==='L');
+    const h2HeavyLongWin=h2HeavyLong.filter(r=>r['Outcome (Primary)']==='Won');
+    const noPressZ4=mkl.filter(r=>(!r['Pressure on Receiver']||r['Pressure on Receiver']==='')&&r['Zone']==='Z4');
+    const noPressZ4Win=noPressZ4.filter(r=>r['Outcome (Primary)']==='Won');
+    const noPressZ2=mkl.filter(r=>(!r['Pressure on Receiver']||r['Pressure on Receiver']==='')&&r['Zone']==='Z2');
+    const noPressZ2Win=noPressZ2.filter(r=>r['Outcome (Primary)']==='Won');
+    const h2HeavyShort=mkl.filter(r=>r['Half'].trim()==='2nd'&&r['Pressure on Receiver']==='Heavy'&&r['Length']==='S');
+    const h2HeavyShortWin=h2HeavyShort.filter(r=>r['Outcome (Primary)']==='Won');
+    // Best opp press zones by actual MKL turnover %
+    const oppZoneTO={};
+    ['Z1','Z2','Z3','Z4','Z5','Z6','Z7','Z8','Z9'].forEach(z=>{
+      const sub=opp.filter(r=>r['Zone']===z);
+      const wins=sub.filter(r=>r['Outcome (Primary)']==='Lost');
+      oppZoneTO[z]={t:sub.length,mkl:wins.length,pct:pct(wins.length,sub.length)};
+    });
+    const bestPressZones=[...Object.keys(oppZoneTO)]
+      .filter(z=>oppZoneTO[z].t>=2)
+      .sort((a,b)=>oppZoneTO[b].pct-oppZoneTO[a].pct)
+      .slice(0,2);
+
     return {
       mkl:{total:mkl.length,won:mklWon.length,lost:mkl.filter(r=>r['Outcome (Primary)']==='Lost').length,
            byLength,byZone,pressure,retention,firstAction,resulting,cleanPoss,twoPhasePct,exitSuccess,half,
-           tacticalCalls,totalCoded,totalUncoded},
+           tacticalCalls,totalCoded,totalUncoded,
+           computed:{h2HeavyLongPct:pct(h2HeavyLongWin.length,h2HeavyLong.length),h2HeavyLongN:h2HeavyLong.length,
+                     noPressZ4Pct:pct(noPressZ4Win.length,noPressZ4.length),noPressZ4N:noPressZ4.length,
+                     noPressZ2Pct:pct(noPressZ2Win.length,noPressZ2.length),
+                     h2HeavyShortPct:pct(h2HeavyShortWin.length,h2HeavyShort.length),h2HeavyShortN:h2HeavyShort.length}},
       opp:{total:opp.length,won:oppWon.length,lost:oppLost.length,
            byZone:oppByZone,pressByLength,resulting:oppResulting,
+           bestPressZones,oppZoneTO,
            half:{first:{t:opp.filter(r=>r['Half']==='1st').length,
                         won:oppWon.filter(r=>r['Half']==='1st').length},
                  second:{t:opp.filter(r=>r['Half'].trim()==='2nd').length,
@@ -1071,8 +1116,11 @@ async function loadData(manual=false){
     MATCHES=result.data;
     matchIds=result.ids;
 
+    const syncTime=new Date().toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    const mklRows=RAW.filter(r=>r['Team']==='MKL').length;
+    const oppRows=RAW.filter(r=>r['Team']==='Opp').length;
     document.getElementById('last-updated').textContent=
-      'Updated '+new Date().toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+      `${syncTime} &#183; ${RAW.length} rows (${mklRows} MKL, ${oppRows} Opp) &#183; ${matchIds.length} match${matchIds.length!==1?'es':''}`;
 
     buildMatchTabs();
     renderAll();
@@ -1122,15 +1170,33 @@ function renderPlayerView(){
     {n:sWin+'%',l:'Short Win %',c:'var(--green)'},
   ].map(h=>`<div class="hero-stat"><div class="hero-num" style="color:${h.c}">${h.n}</div><div class="hero-lbl">${h.l}</div></div>`).join('');
 
-  const lWin=pct(m.byLength.L?.w||0,m.byLength.L?.t||1);
-  const z4win=pct(m.byZone.Z4?.w||0,m.byZone.Z4?.t||1);
-  const z6kicks=o.byZone?.Z6?.t||0;
+  const cp=m.computed||{};
+  const bpz=o.bestPressZones||[];
+  const ozt=o.oppZoneTO||{};
+
+  // Row 2: exact subset — 2nd half + heavy press + long
+  const h2HLtext = cp.h2HeavyLongN>=2
+    ? `SHORT only &#8212; long under 2nd-half press wins ${cp.h2HeavyLongPct}% (${cp.h2HeavyLongN} kicks)`
+    : `SHORT only &#8212; long kickouts under press are high risk (limited 2nd-half data yet)`;
+
+  // Row 3: exact subset — no press + Z4
+  const noPresZ4text = cp.noPressZ4N>=1
+    ? `MID to Z4 &#8212; ${cp.noPressZ4Pct}% win rate when no press on (n=${cp.noPressZ4N})`
+    : `MID to Z4 &#8212; best mid zone overall (${pct(m.byZone.Z4?.w||0,m.byZone.Z4?.t||1)}%)`;
+
+  // Row 4: best opp press zones from actual turnover data
+  const pressZoneText = bpz.length>=2
+    ? `TARGET ${bpz[0]} (${ozt[bpz[0]]?.pct}% TO) &amp; ${bpz[1]} (${ozt[bpz[1]]?.pct}% TO) &#8212; highest MKL turnover zones`
+    : bpz.length===1
+    ? `TARGET ${bpz[0]} (${ozt[bpz[0]]?.pct}% turnover rate) &#8212; best press zone with enough data`
+    : 'Press opp kickouts &#8212; more data needed to identify top zones';
+
   document.getElementById('decision-tree-rows').innerHTML=[
-    {c:'Under heavy press',a:`Go SHORT to Z4/Z2 &#8212; ${sWin}% win rate, zero pressure needed`},
-    {c:'Heavy press + 2nd half',a:`SHORT only &#8212; long KO wins just ${lWin}% under press`},
-    {c:'Mid game, no press',a:`MID to Z4 &#8212; ${z4win}% win rate, builds controlled attack`},
-    {c:'Their kickout',a:`TARGET Z6 &amp; Z9 &#8212; best press zones (Z6: ${z6kicks} kicks taken by opp)`},
-    {c:'After winning kickout',a:'Hold 4+ actions &#8212; '+m.twoPhasePct+'% 2-phase retention target'},
+    {c:'Under heavy press',          a:`Go SHORT to Z4/Z2 &#8212; short wins at ${sWin}% with no press needed`},
+    {c:'Heavy press + 2nd half',     a:h2HLtext},
+    {c:'Mid game, no press',         a:noPresZ4text},
+    {c:'Their kickout',              a:pressZoneText},
+    {c:'After winning kickout',      a:'Hold 4+ actions &#8212; currently '+m.twoPhasePct+'% 2-phase retention'},
   ].map(r=>`<div class="decision-row"><div class="decision-if"><div><span>IF</span>${r.c}</div></div><div class="decision-then"><div><span>THEN</span>${r.a}</div></div></div>`).join('');
 
   document.getElementById('player-huddle').innerHTML=[
@@ -1161,17 +1227,21 @@ function renderOverview(){
       return `<div class="bench-row"><div class="bench-label">${b.l}</div><div class="bench-val" style="color:${col}">${b.v}%</div><div class="bench-bar-wrap"><div class="bench-bar" style="width:${b.v}%;background:${col}"></div><div class="bench-target" style="left:${b.t}%"></div></div><span class="bench-tag" style="color:${col}">${b.v>=b.t?'ON TARGET':'BELOW'}</span></div>`;
     }).join('')}</div>`;
 
+  // Each KPI has its own green/amber threshold — not a global 75%
   document.getElementById('kpi-body').innerHTML=[
-    {kpi:'Own KO Win %',v:mklPct,bench:'75%+',inv:false},
-    {kpi:'2-Phase Retention',v:m.twoPhasePct,bench:'55%+',inv:false},
-    {kpi:'Clean Possession',v:cleanPct,bench:'75%+',inv:false},
-    {kpi:'Immediate TO %',v:immTO,bench:'<15%',inv:true},
-    {kpi:'Positive Attack %',v:m.exitSuccess,bench:'50%+',inv:false},
-    {kpi:'Opp Turnover %',v:oppTO,bench:'40%+',inv:false},
+    {kpi:'Own KO Win %',     v:mklPct,          bench:'75%+', tGreen:75, tAmber:60, inv:false},
+    {kpi:'2-Phase Retention',v:m.twoPhasePct,   bench:'55%+', tGreen:55, tAmber:40, inv:false},
+    {kpi:'Clean Possession', v:cleanPct,         bench:'75%+', tGreen:75, tAmber:60, inv:false},
+    {kpi:'Immediate TO %',   v:immTO,            bench:'<15%', tGreen:15, tAmber:25, inv:true},
+    {kpi:'Positive Attack %',v:m.exitSuccess,    bench:'50%+', tGreen:50, tAmber:35, inv:false},
+    {kpi:'Opp Turnover %',   v:oppTO,            bench:'40%+', tGreen:40, tAmber:25, inv:false},
   ].map(k=>{
-    const ok=k.inv?(k.v<15):(k.v>=75),mid=k.inv?(k.v<25):(k.v>=50);
+    const ok = k.inv ? (k.v<=k.tGreen) : (k.v>=k.tGreen);
+    const mid= k.inv ? (k.v<=k.tAmber) : (k.v>=k.tAmber);
     const badge=ok?'badge-green':mid?'badge-amber':'badge-red';
-    const gap=k.inv?(k.v<=15?'On target':'+'+Math.abs(k.v-15)+'%'):(k.v>=75?'On target':(k.v-75)+'%');
+    const gap = k.inv
+      ? (k.v<=k.tGreen ? 'On target' : '+'+(k.v-k.tGreen)+'%')
+      : (k.v>=k.tGreen ? 'On target' : (k.v-k.tGreen)+'%');
     return `<tr><td>${k.kpi}</td><td><strong>${k.v}%</strong></td><td>${k.bench}</td><td style="color:${ok?'var(--green)':mid?'var(--amber)':'var(--red)'}">${gap}</td><td><span class="badge ${badge}">${ok?'&#128994;':mid?'&#129002;':'&#128308;'} ${k.v}%</span></td></tr>`;
   }).join('');
 }
@@ -1305,11 +1375,24 @@ function renderTactical(){
   ].map(a=>`<div class="action-card"><div class="action-num">${a.n}</div><div class="action-title">${a.t}</div><div class="action-body">${a.b}</div></div>`).join('');
 
   document.getElementById('target-cards').innerHTML=[
-    {l:'&#127919; Own KO Win %',v:'75%',s:`Currently ${mklPct}%`,n:mklPct},
-    {l:'&#127919; 2-Phase Retention',v:'55%',s:`Currently ${m.twoPhasePct}%`,n:m.twoPhasePct},
-    {l:'&#127919; Opp Press Target',v:'45%',s:`Currently ${oppTO}%`,n:oppTO},
-    {l:'&#127919; Positive Attack',v:'50%',s:`Currently ${m.exitSuccess}%`,n:m.exitSuccess},
-  ].map(c=>`<div class="card" style="border-left:3px solid ${colorFor(c.n)}"><div class="card-label">${c.l}</div><div class="card-value" style="color:${colorFor(c.n)}">${c.v}</div><div class="card-sub">${c.s}</div></div>`).join('');
+    {l:'Own KO Win %',   cur:mklPct,        tgt:75,  n:mklPct},
+    {l:'2-Phase Retention',cur:m.twoPhasePct,tgt:55,  n:m.twoPhasePct},
+    {l:'Opp Press Target', cur:oppTO,         tgt:45,  n:oppTO},
+    {l:'Positive Attack',  cur:m.exitSuccess, tgt:50,  n:m.exitSuccess},
+  ].map(c=>{
+    const col=colorFor(c.n);
+    const gap=c.cur>=c.tgt?'+'+Math.abs(c.cur-c.tgt)+'%':(c.cur-c.tgt)+'%';
+    const gapCol=c.cur>=c.tgt?'var(--green)':'var(--red)';
+    return `<div class="card" style="border-left:3px solid ${col}">
+      <div class="card-label">&#127919; ${c.l}</div>
+      <div class="card-value" style="color:${col}">${c.cur}%</div>
+      <div class="prog-wrap"><div class="prog-bar" style="width:${c.cur}%;background:${col}"></div></div>
+      <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:11px">
+        <span style="color:var(--muted)">Target: ${c.tgt}%</span>
+        <span style="color:${gapCol};font-weight:600">${gap}</span>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 
@@ -1362,26 +1445,42 @@ function renderTacticalCalls(){
   const best=sortedCalls[0], worst=sortedCalls[sortedCalls.length-1];
   const bestUnderPress=calls.filter(c=>tc[c].heavyN>=1).sort((a,b)=>tc[b].heavyPct-tc[a].heavyPct)[0];
 
+  // Minimum n=5 for a definitive recommendation; n=3 for a preliminary observation
+  const MIN_CONFIDENT=5, MIN_OBSERVE=3;
+
   const insights=[];
-  if(best && tc[best].n>=2){
-    insights.push(`<div class="insight-card good">
-      <div class="insight-label">&#9989; Best Call Overall</div>
-      <div class="insight-metric green">${best} &#8212; ${tc[best].winPct}% win rate (${tc[best].won}/${tc[best].n})</div>
-      <div class="irow"><span class="ikey">What we do next:</span>Default to ${best} when no pressure cue is given.</div>
+  if(best && tc[best].n>=MIN_OBSERVE){
+    const confident=tc[best].n>=MIN_CONFIDENT;
+    insights.push(`<div class="insight-card ${confident?'good':'warn'}">
+      <div class="insight-label">${confident?'&#9989;':'&#9888;&#65039;'} Best Call Overall ${!confident?'<span class=\"sample-tag sample-low\">LOW SAMPLE</span>':''}</div>
+      <div class="insight-metric ${confident?'green':''}" style="color:${confident?'var(--green)':'var(--amber)'}">
+        ${best} &#8212; ${tc[best].winPct}% win rate (${tc[best].won}/${tc[best].n})
+      </div>
+      <div class="irow"><span class="ikey">What we do next:</span>${confident?'Default to '+best+' when no press cue is active.':'Trend looks positive for '+best+' &#8212; needs more data before making it the default.'}</div>
     </div>`);
   }
-  if(bestUnderPress && tc[bestUnderPress].heavyN>=1){
-    insights.push(`<div class="insight-card ${tc[bestUnderPress].heavyPct>=60?'good':'warn'}">
-      <div class="insight-label">&#9889; Best Call Under Heavy Press</div>
-      <div class="insight-metric" style="color:${hexFor(tc[bestUnderPress].heavyPct)}">${bestUnderPress} &#8212; ${tc[bestUnderPress].heavyPct}% when pressed (n=${tc[bestUnderPress].heavyN})</div>
-      <div class="irow"><span class="ikey">What we do next:</span>When opp presses heavily, call ${bestUnderPress}.</div>
+  if(bestUnderPress && tc[bestUnderPress].heavyN>=MIN_OBSERVE){
+    const confident=tc[bestUnderPress].heavyN>=MIN_CONFIDENT;
+    insights.push(`<div class="insight-card ${tc[bestUnderPress].heavyPct>=60&&confident?'good':'warn'}">
+      <div class="insight-label">&#9889; Best Call Under Heavy Press ${!confident?'<span class=\"sample-tag sample-low\">LOW SAMPLE</span>':''}</div>
+      <div class="insight-metric" style="color:${hexFor(tc[bestUnderPress].heavyPct)}">
+        ${bestUnderPress} &#8212; ${tc[bestUnderPress].heavyPct}% when pressed (${tc[bestUnderPress].heavyN} pressed kickouts)
+      </div>
+      <div class="irow"><span class="ikey">What we do next:</span>${confident?'When opp presses heavily, call '+bestUnderPress+'.':'Early data favours '+bestUnderPress+' under press &#8212; collect more before committing to it.'}</div>
+    </div>`);
+  } else if(bestUnderPress && tc[bestUnderPress].heavyN>=1){
+    insights.push(`<div class="insight-card warn">
+      <div class="insight-label">&#9889; Press Data &#8212; Too Early to Conclude <span class="sample-tag sample-low">LOW SAMPLE</span></div>
+      <div class="insight-metric" style="color:var(--amber)">Fewer than ${MIN_OBSERVE} pressed kickouts recorded per call</div>
+      <div class="irow"><span class="ikey">What we do next:</span>Code tactical calls for all matches to build a reliable press-response picture.</div>
     </div>`);
   }
-  if(worst && tc[worst].n>=2 && worst!==best){
-    insights.push(`<div class="insight-card bad">
-      <div class="insight-label">&#128308; Lowest Win Rate</div>
+  if(worst && tc[worst].n>=MIN_OBSERVE && worst!==best){
+    const confident=tc[worst].n>=MIN_CONFIDENT;
+    insights.push(`<div class="insight-card ${confident?'bad':'warn'}">
+      <div class="insight-label">&#128308; Lowest Win Rate ${!confident?'<span class=\"sample-tag sample-low\">LOW SAMPLE</span>':''}</div>
       <div class="insight-metric red">${worst} &#8212; ${tc[worst].winPct}% win rate (${tc[worst].won}/${tc[worst].n})</div>
-      <div class="irow"><span class="ikey">What we do next:</span>Review when ${worst} is being called &#8212; consider alternatives.</div>
+      <div class="irow"><span class="ikey">What we do next:</span>${confident?'Review when '+worst+' is called &#8212; consider alternatives.':'Small sample on '+worst+' &#8212; note the trend but do not change tactics yet.'}</div>
     </div>`);
   }
 
