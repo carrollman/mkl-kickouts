@@ -369,6 +369,7 @@ tr:hover td{background:var(--surface2)}
     <div class="view-toggle">
       <button class="view-btn active" id="vb-players" onclick="setView('players')">&#128100; Player</button>
       <button class="view-btn" id="vb-coaches" onclick="setView('coaches')">&#128203; Coach</button>
+      <button class="view-btn" id="vb-clips" onclick="setView('clips')">&#127910; Video</button>
       <button class="view-btn" id="vb-glossary" onclick="setView('glossary')">&#128218; Glossary</button>
     </div>
     <button class="wa-btn" onclick="openWAModal()">
@@ -465,15 +466,6 @@ tr:hover td{background:var(--surface2)}
     <div style="background:rgba(88,166,255,.08);border:1px solid var(--accent);border-radius:var(--r);padding:13px;margin-bottom:14px"><strong style="color:var(--accent)">Verdict:</strong> <span id="verdict-text"></span></div>
     <div class="action-grid" id="action-cards"></div>
     <div class="card-grid" style="margin-top:14px" id="target-cards"></div>
-  </div>
-  <hr class="sep">
-  <div class="section" id="sec-video-clips">
-    <div class="sec-title">&#127910; Video Clips</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
-      Kickouts with a <strong>Video Time</strong> coded in the Google Sheet.
-      Switch to a specific match tab for clickable YouTube links.
-    </div>
-    <div id="video-clips-section"></div>
   </div>
 </div>
 
@@ -773,6 +765,21 @@ tr:hover td{background:var(--surface2)}
 </div><!-- /glossary-view -->
 
 
+
+<!-- CLIPS VIEW -->
+<div id="clips-view" style="display:none">
+  <div class="section visible" id="sec-clips-main">
+    <div class="player-hero" style="margin-bottom:18px">
+      <h2>&#127910; Video Clips</h2>
+      <p style="font-size:13px;color:var(--muted);margin-top:6px">
+        Kickouts with a Video Time coded in the Google Sheet.
+        Switch to a specific match tab above for clickable YouTube links.
+      </p>
+    </div>
+    <div id="video-clips-section"></div>
+  </div>
+</div>
+
 </div><!-- /page -->
 
 <div class="modal-overlay" id="wa-modal" onclick="if(event.target===this)closeWAModal()">
@@ -803,6 +810,70 @@ const CREST_SRC = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1
 // ══ STATE ══
 let RAW=[], MATCHES={}, matchIds=[], currentMatch='all', currentView='players', currentCardType='summary';
 let charts={};
+
+// ══ YOUTUBE PLAYER STATE ══
+let ytPlayer=null, ytReady=false, ytPendingSecs=null, ytPendingVid=null;
+
+// Load YouTube IFrame API once
+(function loadYTApi(){
+  if(document.getElementById('yt-api-script')) return;
+  const s=document.createElement('script');
+  s.id='yt-api-script';
+  s.src='https://www.youtube.com/iframe_api';
+  document.head.appendChild(s);
+})();
+
+// Called by YouTube API when ready
+window.onYouTubeIframeAPIReady=function(){
+  ytReady=true;
+  const container=document.getElementById('yt-player-container');
+  if(!container) return;
+  ytPlayer=new YT.Player('yt-player',{
+    height:'100%', width:'100%',
+    playerVars:{autoplay:0,rel:0,modestbranding:1,playsinline:1},
+    events:{
+      onReady:function(){
+        if(ytPendingVid){
+          ytPlayer.loadVideoById({videoId:ytPendingVid,startSeconds:ytPendingSecs||0});
+          ytPendingVid=null; ytPendingSecs=null;
+        }
+      }
+    }
+  });
+};
+
+function playClip(videoId, secs){
+  // Switch to clips view if not already there
+  if(currentView!=='clips') setView('clips');
+  // Scroll player into view
+  const container=document.getElementById('yt-player-container');
+  if(container) container.scrollIntoView({behavior:'smooth',block:'start'});
+
+  if(!ytReady||!ytPlayer){
+    // API not ready yet — queue it
+    ytPendingVid=videoId; ytPendingSecs=secs;
+    return;
+  }
+  // If same video just seek, otherwise load new video
+  try{
+    const current=ytPlayer.getVideoData&&ytPlayer.getVideoData();
+    if(current&&current.video_id===videoId){
+      ytPlayer.seekTo(secs,true);
+      ytPlayer.playVideo();
+    } else {
+      ytPlayer.loadVideoById({videoId:videoId,startSeconds:secs});
+    }
+  }catch(e){
+    // Player not fully initialised yet
+    ytPendingVid=videoId; ytPendingSecs=secs;
+  }
+}
+
+function extractVideoId(url){
+  if(!url) return '';
+  const m=url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  return m?m[1]:'';
+}
 
 // ══ UTILS ══
 const pct=(w,t)=>t===0?0:Math.round(w/t*100);
@@ -1017,62 +1088,127 @@ function buildMatchData(rows){
     // Possession type breakdown — after h1mkl/h2mkl are defined
     const possTypes=['Clean Catch','No Contest','Contested Catch','Breaking Ball','Free (From Kickout)','Out for Sideline'];
 
-    // Build clips list for video analysis
+    // Build clips list for video analysis — MKL kickouts
     const SHOT_VALS_C=['Score','Wide','Shot Saved','Drop Shot'];
     const clips={positive:[],review:[]};
+
+    // Helper to convert mm:ss or h:mm:ss to seconds
+    function vtToSecs(vt){
+      const parts=vt.trim().split(':').map(Number);
+      return parts.length===3?(parts[0]*3600+parts[1]*60+parts[2])
+            :parts.length===2?(parts[0]*60+parts[1]):0;
+    }
+
+    // ── MKL kickout clips ──────────────────────────────────────
     mkl.forEach(r=>{
       const vt=(r['Video Time']||'').trim();
-      if(!vt) return; // skip rows with no video timestamp
+      if(!vt) return;
       const outcome=r['Outcome (Primary)'];
       const result=r['Resulting Outcome']||'';
       const action=r['Resulting Action']||'';
       const retention=r['Retention After Win']||'';
       const pressure=r['Pressure on Receiver']||'';
+      const tactical=(r['Tactical Call']||'').trim();
+      const possType=r['Possession Type']||'';
       const isShot=SHOT_VALS_C.includes(result)||SHOT_VALS_C.includes(action);
       const isScore=result==='Score'||action==='Score';
       const isImmTO=retention.includes('Immediate Turnover');
-
-      // Convert mm:ss or h:mm:ss to seconds
-      const parts=vt.split(':').map(Number);
-      const secs=parts.length===3?(parts[0]*3600+parts[1]*60+parts[2])
-                :parts.length===2?(parts[0]*60+parts[1]):0;
+      const hasTactical=tactical!=='';
 
       const clip={
-        ko: r['Kickout Number per Team']||'?',
-        half: r['Half']||'',
-        vt, secs,
-        length: r['Length']||'',
-        zone: r['Zone']||'',
-        pressure,
-        tactical: r['Tactical Call']||'',
+        team:'MKL',
+        ko:r['Kickout Number per Team']||'?',
+        half:r['Half']||'',
+        vt, secs:vtToSecs(vt),
+        length:r['Length']||'',
+        zone:r['Zone']||'',
+        pressure, tactical, possType,
         outcome,
-        firstAction: r['First Action After Win']||'',
-        retention,
-        result,
-        label:''
+        firstAction:r['First Action After Win']||'',
+        retention, result, label:'', category:''
       };
 
       if(outcome==='Won'){
-        if(isScore){
-          clip.label='Won \u2192 Score';
+        // Tactical call worked
+        if(hasTactical && (isScore||result==='Foul Won'||isShot)){
+          clip.label=tactical+' \u2192 '+( isScore?'Score':result==='Foul Won'?'Foul Won':'Shot');
+          clip.category='tactical-positive';
           clips.positive.push(clip);
-        } else if(isShot){
-          clip.label='Won \u2192 Shot';
+        } else if(isScore){
+          clip.label='Won \u2192 Score';
+          clip.category='positive';
           clips.positive.push(clip);
         } else if(result==='Foul Won'){
           clip.label='Won \u2192 Foul Won';
+          clip.category='positive';
           clips.positive.push(clip);
+        } else if(isShot){
+          clip.label='Won \u2192 Shot';
+          clip.category='positive';
+          clips.positive.push(clip);
+        } else if(hasTactical && isImmTO){
+          // Tactical call but immediate turnover
+          clip.label=tactical+' called \u2192 Immediate Turnover';
+          clip.category='tactical-review';
+          clips.review.push(clip);
         } else if(isImmTO){
           clip.label='Won but Immediate Turnover';
+          clip.category='review';
           clips.review.push(clip);
         }
       } else {
         // Lost kickout
-        if(pressure==='Heavy'){
+        if(hasTactical){
+          clip.label=tactical+' called \u2192 Lost';
+          clip.category='tactical-review';
+        } else if(pressure==='Heavy'){
           clip.label='Lost under Heavy Press';
-          clips.review.push(clip);
+          clip.category='review';
         } else {
-          clip.label='Lost \u2192 '+result;
+          clip.label='Lost \u2192 '+(result||'Turnover');
+          clip.category='review';
+        }
+        clips.review.push(clip);
+      }
+    });
+
+    // ── Opposition kickout clips ───────────────────────────────
+    // Flag opp rows where our press was called but they won cleanly
+    opp.forEach(r=>{
+      const vt=(r['Video Time']||'').trim();
+      if(!vt) return;
+      const outcome=r['Outcome (Primary)'];
+      const tactical=(r['Tactical Call']||'').trim(); // our press call
+      const possType=r['Possession Type']||'';
+      const isCleanWin=possType==='Clean Catch'||possType==='No Contest';
+      const isPressCalled=['High Press','Player on Player','Zonal'].includes(tactical);
+
+      const clip={
+        team:'Opp',
+        ko:r['Kickout Number per Team']||'?',
+        half:r['Half']||'',
+        vt, secs:vtToSecs(vt),
+        length:r['Length']||'',
+        zone:r['Zone']||'',
+        pressure:'', tactical, possType,
+        outcome,
+        firstAction:'', retention:'',
+        result:r['Resulting Outcome']||'',
+        label:'', category:''
+      };
+
+      if(outcome==='Lost'){ // MKL won the press — turnover
+        clip.label=(isPressCalled?tactical:'Press')+' \u2192 Turnover Won';
+        clip.category='press-positive';
+        clips.positive.push(clip);
+      } else if(outcome==='Won'){
+        if(isPressCalled && isCleanWin){
+          clip.label=tactical+' \u2192 They Won Cleanly';
+          clip.category='press-review';
+          clips.review.push(clip);
+        } else if(isPressCalled){
+          clip.label=tactical+' \u2192 They Retained';
+          clip.category='press-review';
           clips.review.push(clip);
         }
       }
@@ -1727,7 +1863,45 @@ function renderVideoClips(){
 
   const clips=d.mkl?.clips||{positive:[],review:[]};
   const ytUrl=d.ytUrl||'';
+  const videoId=extractVideoId(ytUrl);
   const totalClips=clips.positive.length+clips.review.length;
+
+  // Ensure the embedded player div exists above the clips list
+  const playerWrap=document.getElementById('yt-player-wrap');
+  if(!playerWrap){
+    const wrap=document.createElement('div');
+    wrap.id='yt-player-wrap';
+    wrap.style.cssText='margin-bottom:20px';
+    container.parentNode.insertBefore(wrap,container);
+  }
+
+  // Build or update the player area
+  const pw=document.getElementById('yt-player-wrap');
+  if(videoId){
+    // Show player if we have a video ID
+    if(!document.getElementById('yt-player-container')){
+      pw.innerHTML=`
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+          <div style="background:#0d1117;padding:10px 14px;display:flex;align-items:center;
+            justify-content:space-between;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px;font-weight:600;color:var(--text)">&#127910; Match Video</span>
+            <span style="font-size:11px;color:var(--muted)">Click &#9654; Play on any clip below to jump to that moment</span>
+          </div>
+          <div id="yt-player-container" style="position:relative;padding-bottom:56.25%;height:0;background:#000">
+            <div id="yt-player" style="position:absolute;top:0;left:0;width:100%;height:100%"></div>
+          </div>
+        </div>`;
+      // Initialise player if API is ready, otherwise it will be picked up by onYouTubeIframeAPIReady
+      if(ytReady && !ytPlayer){
+        ytPlayer=new YT.Player('yt-player',{
+          height:'100%', width:'100%',
+          playerVars:{autoplay:0,rel:0,modestbranding:1,playsinline:1},
+        });
+      }
+    }
+  } else {
+    pw.innerHTML='';
+  }
 
   if(totalClips===0){
     container.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);
@@ -1737,14 +1911,14 @@ function renderVideoClips(){
       <div style="font-size:12px;line-height:1.6">
         Add a <strong style="color:var(--accent)">Video Time</strong> (mm:ss) and
         <strong style="color:var(--accent)">YouTube URL</strong> to your Google Sheet
-        to generate clickable clips here.
+        to generate clips here.
       </div>
     </div>`;
     return;
   }
 
   if(!ytUrl && currentMatch!=='all'){
-    container.innerHTML+=`<div style="background:var(--amber-bg);border:1px solid var(--amber);
+    container.innerHTML=`<div style="background:var(--amber-bg);border:1px solid var(--amber);
       border-radius:8px;padding:10px 13px;margin-bottom:14px;font-size:12px;color:var(--amber)">
       &#9888;&#65039; No YouTube URL found for this match. Add it to the first row of this match in the Google Sheet.
     </div>`;
@@ -1757,43 +1931,66 @@ function renderVideoClips(){
 
   function clipCard(clip,isPositive){
     const link=makeYtLink(clip);
-    const borderCol=isPositive?'var(--green)':'var(--red)';
-    const tagBg=isPositive?'var(--green-bg)':'var(--red-bg)';
-    const tagCol=isPositive?'var(--green)':'var(--red)';
-    const icon=isPositive?'&#9989;':'&#128308;';
-    const pressStr=clip.pressure?`<span style="background:var(--red-bg);color:var(--red);
-      padding:1px 6px;border-radius:8px;font-size:10px;margin-left:4px">${clip.pressure} Press</span>`:'';
-    const tactStr=clip.tactical?`<span style="background:rgba(88,166,255,.15);color:var(--accent);
-      padding:1px 6px;border-radius:8px;font-size:10px;margin-left:4px">${clip.tactical}</span>`:'';
-    const watchBtn=link
-      ? `<a href="${link}" target="_blank" rel="noopener"
-          style="display:inline-flex;align-items:center;gap:5px;padding:6px 14px;
+    // Colour and icon varies by category
+    const catStyles={
+      'tactical-positive': {border:'var(--green)',  bg:'rgba(63,185,80,.15)',  col:'var(--green)',  icon:'&#127922;'},
+      'positive':          {border:'var(--green)',  bg:'var(--green-bg)',       col:'var(--green)',  icon:'&#9989;'},
+      'press-positive':    {border:'#58a6ff',       bg:'rgba(88,166,255,.15)', col:'#58a6ff',       icon:'&#128170;'},
+      'tactical-review':   {border:'var(--amber)',  bg:'var(--amber-bg)',       col:'var(--amber)',  icon:'&#9888;&#65039;'},
+      'press-review':      {border:'var(--amber)',  bg:'var(--amber-bg)',       col:'var(--amber)',  icon:'&#128308;'},
+      'review':            {border:'var(--red)',    bg:'var(--red-bg)',         col:'var(--red)',    icon:'&#128308;'},
+    };
+    const style=catStyles[clip.category]||(isPositive?catStyles.positive:catStyles.review);
+
+    const teamTag=clip.team==='Opp'
+      ? `<span style="background:rgba(248,81,73,.15);color:var(--red);
+          padding:1px 6px;border-radius:8px;font-size:10px">Opp KO</span>`
+      : '';
+
+    const lengthLabel=clip.length==='S'?'Short':clip.length==='M'?'Mid':clip.length==='L'?'Long':'';
+    const metaItems=[
+      lengthLabel?`&#128207; ${lengthLabel}`:'',
+      clip.zone?`&#127968; ${clip.zone}`:'',
+      clip.tactical&&clip.team==='MKL'?`&#127922; ${clip.tactical}`:'',
+      clip.possType?`&#128081; ${clip.possType}`:'',
+      clip.firstAction?`&#128062; ${clip.firstAction}`:'',
+      clip.result&&clip.team==='MKL'?`&#127919; ${clip.result}`:'',
+    ].filter(Boolean);
+
+    const vidId=extractVideoId(ytUrl);
+    const watchBtn=vidId
+      ? `<button onclick="playClip('${vidId}',${clip.secs})"
+          style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;
           background:linear-gradient(135deg,#ff0000,#cc0000);border-radius:8px;
-          color:#fff;font-size:12px;font-weight:600;text-decoration:none;
+          color:#fff;font-size:12px;font-weight:600;border:none;cursor:pointer;
           transition:opacity .2s" onmouseover="this.style.opacity='.8'"
           onmouseout="this.style.opacity='1'">
+          &#9654; Play
+        </button>`
+      : link
+      ? `<a href="${link}" target="_blank" rel="noopener"
+          style="display:inline-flex;align-items:center;gap:5px;padding:6px 14px;
+          background:var(--surface);border:1px solid var(--border);border-radius:8px;
+          color:var(--text);font-size:12px;font-weight:600;text-decoration:none">
           &#9654; Watch
         </a>`
       : `<span style="font-size:11px;color:var(--muted)">No URL</span>`;
 
     return `<div style="background:var(--surface);border:1px solid var(--border);
-      border-left:4px solid ${borderCol};border-radius:var(--r);
+      border-left:4px solid ${style.border};border-radius:var(--r);
       padding:13px 15px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <div style="flex:1;min-width:200px">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:5px">
-          <span style="background:${tagBg};color:${tagCol};padding:2px 8px;
-            border-radius:10px;font-size:11px;font-weight:600">${icon} ${clip.label}</span>
-          ${pressStr}${tactStr}
+          <span style="background:${style.bg};color:${style.col};padding:2px 8px;
+            border-radius:10px;font-size:11px;font-weight:600">${style.icon} ${clip.label}</span>
+          ${teamTag}
         </div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:3px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px">
           KO#${clip.ko} &nbsp;&#183;&nbsp; ${clip.half} Half &nbsp;&#183;&nbsp;
           <span style="color:var(--gold)">${clip.vt}</span>
         </div>
-        <div style="font-size:11px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap">
-          <span>&#128207; ${clip.length==='S'?'Short':clip.length==='M'?'Mid':'Long'}</span>
-          <span>&#127968; ${clip.zone}</span>
-          ${clip.firstAction?`<span>&#128062; First: ${clip.firstAction}</span>`:''}
-          ${clip.result?`<span>&#127919; ${clip.result}</span>`:''}
+        <div style="font-size:11px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap">
+          ${metaItems.map(i=>`<span>${i}</span>`).join('')}
         </div>
       </div>
       <div style="flex-shrink:0">${watchBtn}</div>
@@ -1913,9 +2110,11 @@ function setView(v){
   document.getElementById('vb-players').classList.toggle('active',v==='players');
   document.getElementById('vb-coaches').classList.toggle('active',v==='coaches');
   document.getElementById('vb-glossary').classList.toggle('active',v==='glossary');
+  document.getElementById('vb-clips').classList.toggle('active',v==='clips');
   document.getElementById('player-view').style.display=v==='players'?'block':'none';
   document.getElementById('coach-view').style.display=v==='coaches'?'block':'none';
   document.getElementById('glossary-view').style.display=v==='glossary'?'block':'none';
+  document.getElementById('clips-view').style.display=v==='clips'?'block':'none';
 }
 
 const obs=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible');}),{threshold:0.06});
