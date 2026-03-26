@@ -1385,6 +1385,7 @@ function renderTactical(){
     {n:'06',t:'Z6/Z9 Press Triggers',b:'Assign specific players to Z6 and Z9 when opp kicks. Rehearse the shape.'},
   ].map(a=>`<div class="action-card"><div class="action-num">${a.n}</div><div class="action-title">${a.t}</div><div class="action-body">${a.b}</div></div>`).join('');
 
+  const immTO=pct(m.retention.immediate,m.won); // local to renderTactical
   document.getElementById('target-cards').innerHTML=[
     {l:'Own KO Win %',      cur:mklPct,             tgt:75, n:mklPct},
     {l:'2-Phase Retention', cur:m.twoPhasePct,       tgt:70, n:m.twoPhasePct},
