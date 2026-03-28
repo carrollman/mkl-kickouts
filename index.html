@@ -338,6 +338,33 @@ tr:hover td{background:var(--surface2)}
     color:#fff;font-size:12px;font-weight:600;text-decoration:none;transition:opacity .2s}
   .clip-watch-btn:hover{opacity:.8}
   :root{--green-bg:rgba(63,185,80,.1);--red-bg:rgba(248,81,73,.1);--amber-bg:rgba(210,153,34,.1)}
+
+  /* ══ COACH SUB-NAV ════════════════════════════════════════ */
+  .coach-subnav{position:sticky;top:0;z-index:90;background:var(--bg);
+    border-bottom:1px solid var(--border);padding:0 16px;
+    display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+  .coach-subnav::-webkit-scrollbar{display:none}
+  .coach-subnav-btn{padding:10px 16px;font-size:12px;font-weight:600;
+    border:none;background:transparent;color:var(--muted);cursor:pointer;
+    border-bottom:2px solid transparent;white-space:nowrap;transition:all .2s}
+  .coach-subnav-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .coach-subnav-btn:hover{color:var(--text)}
+
+  /* ══ COLLAPSIBLE SECTIONS ══════════════════════════════════ */
+  .sec-header{display:flex;align-items:center;justify-content:space-between;
+    cursor:pointer;user-select:none}
+  .sec-header:hover .sec-title{color:var(--accent)}
+  .sec-toggle{font-size:11px;color:var(--muted);padding:2px 6px;
+    border-radius:4px;border:1px solid var(--border);background:var(--surface);
+    transition:all .2s;flex-shrink:0}
+  @media(min-width:768px){
+    .sec-toggle{display:none} /* desktop: always expanded, no toggle */
+  }
+
+  /* ══ KPI EXPANDABLE ════════════════════════════════════════ */
+  .kpi-expandable:hover{border-color:var(--accent)!important}
+  .kpi-expandable .card-label::after{content:' ↓';font-size:9px;
+    color:var(--muted);margin-left:3px}
 </style>
 <body>
 <div class="loading-screen" id="loading-screen">
@@ -393,15 +420,33 @@ tr:hover td{background:var(--surface2)}
 
 <!-- COACH VIEW -->
 <div id="coach-view" style="display:none">
+
+  <!-- STICKY SUB-NAV -->
+  <div class="coach-subnav" id="coach-subnav">
+    <button class="coach-subnav-btn active" data-group="matchday"
+      onclick="setCoachGroup('matchday')">&#9889; Matchday</button>
+    <button class="coach-subnav-btn" data-group="analysis"
+      onclick="setCoachGroup('analysis')">&#128202; Analysis</button>
+  </div>
+
   <div class="section visible" id="sec-overview">
-    <div class="sec-title">&#128202; Overview &amp; KPI Benchmarks</div>
+    <div class="sec-header" onclick="toggleSection('overview')">
+      <div class="sec-title">&#128202; Overview &amp; KPI Benchmarks</div>
+      <span class="sec-toggle" id="sec-icon-overview">&#9660;</span>
+    </div>
+    <div id="sec-body-overview">
     <div class="card-grid" id="overview-cards"></div>
     <div style="margin-top:14px" id="benchmark-section"></div>
     <div style="margin-top:14px"><div class="tbl-wrap"><table class="kpi-t"><thead><tr><th>KPI</th><th>MKL</th><th>Benchmark</th><th>Gap</th><th>Status</th></tr></thead><tbody id="kpi-body"></tbody></table></div></div>
   </div>
+      </div>
   <hr class="sep">
   <div class="section" id="sec-own">
-    <div class="sec-title">&#128994; Our Kickouts (MKL)</div>
+    <div class="sec-header" onclick="toggleSection('own')">
+      <div class="sec-title">&#128994; Our Kickouts (MKL)</div>
+      <span class="sec-toggle" id="sec-icon-own">&#9660;</span>
+    </div>
+    <div id="sec-body-own">
     <div class="chart-card" style="margin-bottom:14px"><div class="chart-title">Possession Flow Funnel</div><div class="chart-sub">Kickout taken &#8594; Won &#8594; 2-Phase Retained &#8594; Positive Outcome</div><div class="funnel-wrap" id="possession-funnel"></div></div>
     <div class="chart-grid">
       <div class="chart-card"><div class="chart-title">Win % by Length</div><div class="chart-sub">Short / Mid / Long</div><div class="chart-wrap"><canvas id="chart-length"></canvas></div></div>
@@ -416,23 +461,38 @@ tr:hover td{background:var(--surface2)}
     <div class="chart-card" style="margin-top:14px"><div class="chart-title">Scenario Matrix: Pressure &times; Kickout Length</div><div class="chart-sub">Win % for every combination</div><div class="matrix-wrap" id="scenario-matrix"></div></div>
     <div class="insight-grid" style="margin-top:14px" id="own-insights"></div>
   </div>
+      </div>
   <hr class="sep">
 
   <!-- POSSESSION TYPE BREAKDOWN -->
   <div class="section" id="sec-poss-breakdown">
-    <div class="sec-title">&#127922; Kickout Possession Type Breakdown</div>
+    <div class="sec-header" onclick="toggleSection('poss-breakdown')">
+      <div class="sec-title">&#127922; Kickout Possession Type Breakdown</div>
+      <span class="sec-toggle" id="sec-icon-poss-breakdown">&#9660;</span>
+    </div>
+    <div id="sec-body-poss-breakdown">
     <div id="poss-breakdown-section"></div>
   </div>
+      </div>
   <hr class="sep">
 
   <!-- TACTICAL CALLS -->
   <div class="section" id="sec-tactical-calls">
-    <div class="sec-title">&#127922; Tactical Call Analysis</div>
+    <div class="sec-header" onclick="toggleSection('tactical-calls')">
+      <div class="sec-title">&#127922; Tactical Call Analysis</div>
+      <span class="sec-toggle" id="sec-icon-tactical-calls">&#9660;</span>
+    </div>
+    <div id="sec-body-tactical-calls">
     <div id="tactical-call-section"></div>
   </div>
+      </div>
   <hr class="sep">
   <div class="section" id="sec-opp">
-    <div class="sec-title">&#128308; Opposition Kickouts</div>
+    <div class="sec-header" onclick="toggleSection('opp')">
+      <div class="sec-title">&#128308; Opposition Kickouts</div>
+      <span class="sec-toggle" id="sec-icon-opp">&#9660;</span>
+    </div>
+    <div id="sec-body-opp">
     <div class="chart-grid">
       <div class="chart-card"><div class="chart-title">MKL Press Success by Opp Length</div><div class="chart-sub">Where is our press most effective?</div><div class="chart-wrap"><canvas id="chart-press-length"></canvas></div></div>
       <div class="chart-card"><div class="chart-title">Opp Retained Kickout Outcomes</div><div class="chart-sub">What happens when they keep it?</div><div class="chart-wrap"><canvas id="chart-opp-result"></canvas></div></div>
@@ -443,14 +503,24 @@ tr:hover td{background:var(--surface2)}
     </div>
     <div class="insight-grid" style="margin-top:14px" id="opp-insights"></div>
   </div>
+      </div>
   <hr class="sep">
   <div class="section" id="sec-trend">
-    <div class="sec-title">&#128200; Performance Trend: 1st vs 2nd Half</div>
+    <div class="sec-header" onclick="toggleSection('trend')">
+      <div class="sec-title">&#128200; Performance Trend: 1st vs 2nd Half</div>
+      <span class="sec-toggle" id="sec-icon-trend">&#9660;</span>
+    </div>
+    <div id="sec-body-trend">
     <div class="trend-grid" id="perf-trend-cards"></div>
   </div>
+      </div>
   <hr class="sep">
   <div class="section" id="sec-tactical">
-    <div class="sec-title">&#129504; Tactical Summary</div>
+    <div class="sec-header" onclick="toggleSection('tactical')">
+      <div class="sec-title">&#129504; Tactical Summary</div>
+      <span class="sec-toggle" id="sec-icon-tactical">&#9660;</span>
+    </div>
+    <div id="sec-body-tactical">
     <div class="chart-grid">
       <div class="chart-card"><div class="chart-title">Turnover Phase</div><div class="chart-sub">Where does play break down?</div><div class="chart-wrap"><canvas id="chart-to-phase"></canvas></div></div>
       <div class="chart-card"><div class="chart-title">Match Trend &#8212; Key KPIs</div><div class="chart-sub">Progress across matches</div><div class="chart-wrap"><canvas id="chart-match-trend"></canvas></div></div>
@@ -460,14 +530,20 @@ tr:hover td{background:var(--surface2)}
       <div class="insight-card warn"><div class="insight-label">&#9888;&#65039; Needs Improvement</div><div id="needs-list" style="display:flex;flex-direction:column;gap:5px"></div></div>
     </div>
   </div>
+      </div>
   <hr class="sep">
   <div class="section" id="sec-action">
-    <div class="sec-title">&#127919; Action Plan</div>
+    <div class="sec-header" onclick="toggleSection('action')">
+      <div class="sec-title">&#127919; Action Plan</div>
+      <span class="sec-toggle" id="sec-icon-action">&#9660;</span>
+    </div>
+    <div id="sec-body-action">
     <div style="background:rgba(88,166,255,.08);border:1px solid var(--accent);border-radius:var(--r);padding:13px;margin-bottom:14px"><strong style="color:var(--accent)">Verdict:</strong> <span id="verdict-text"></span></div>
     <div class="action-grid" id="action-cards"></div>
     <div class="card-grid" style="margin-top:14px" id="target-cards"></div>
   </div>
-</div>
+    </div>
+  </div>
 
 
 <!-- GLOSSARY VIEW -->
@@ -1386,9 +1462,84 @@ function buildMatchTabs(){
 
 function getD(){return MATCHES[currentMatch]||MATCHES['all'];}
 
+
+
+// ══ COLLAPSIBLE SECTIONS ══
+
+function toggleKpiCard(id){
+  const detail=document.getElementById('kpi-detail-'+id);
+  const icon=document.getElementById('kpi-icon-'+id);
+  if(!detail) return;
+  const open=detail.style.display!=='none';
+  detail.style.display=open?'none':'block';
+  if(icon) icon.innerHTML=open?'&#9660;':'&#9650;';
+}
+
+function toggleSection(id){
+  const body=document.getElementById('sec-body-'+id);
+  const icon=document.getElementById('sec-icon-'+id);
+  if(!body) return;
+  const isOpen=body.style.display!=='none';
+  body.style.display=isOpen?'none':'block';
+  if(icon) icon.textContent=isOpen?'▸':'▾';
+}
+
+// ══ COACH SUB-NAV ══
+const COACH_GROUPS = {
+  matchday: ['sec-overview','sec-tactical-calls','sec-tactical','sec-action'],
+  analysis: ['sec-own','sec-poss-breakdown','sec-opp','sec-trend'],
+};
+
+function scrollToSection(id){
+  const el=document.getElementById(id);
+  if(!el) return;
+  const offset=document.getElementById('coach-subnav')?.offsetHeight||48;
+  const top=el.getBoundingClientRect().top+window.scrollY-(offset+70);
+  window.scrollTo({top,behavior:'smooth'});
+}
+
+function setCoachGroup(group){
+  document.querySelectorAll('.coach-subnav-btn').forEach(b=>
+    b.classList.toggle('active',b.dataset.group===group));
+  // Show target group, hide other
+  Object.entries(COACH_GROUPS).forEach(([g,ids])=>{
+    ids.forEach(id=>{
+      const el=document.getElementById(id);
+      const hr=el?.previousElementSibling;
+      const show=g===group;
+      if(el) el.style.display=show?'block':'none';
+      if(hr && hr.tagName==='HR') hr.style.display=show?'block':'none';
+    });
+  });
+  window.scrollTo({top:document.getElementById('coach-subnav')?.offsetTop||0,behavior:'smooth'});
+}
+
+// Highlight active subnav group based on scroll position
+function updateCoachSubnav(){
+  if(currentView!=='coaches') return;
+  const navEl=document.getElementById('coach-subnav');
+  if(!navEl) return;
+  const scrollY=window.scrollY;
+  let activeGroup='matchday';
+  Object.entries(COACH_GROUPS).forEach(([group,ids])=>{
+    ids.forEach(id=>{
+      const el=document.getElementById(id);
+      if(el && el.style.display!=='none'){
+        const top=el.getBoundingClientRect().top+scrollY-120;
+        if(scrollY>=top) activeGroup=group;
+      }
+    });
+  });
+  document.querySelectorAll('.coach-subnav-btn').forEach(b=>
+    b.classList.toggle('active',b.dataset.group===activeGroup));
+}
+window.addEventListener('scroll',updateCoachSubnav,{passive:true});
+
 function renderAll(){
   if(!MATCHES['all'])return;
   renderPlayerView(); renderOverview(); renderOwnCharts(); renderOppCharts(); renderTrend(); renderTactical(); renderTacticalCalls(); renderPossBreakdown(); renderVideoClips();
+  // Default to matchday group when coach view loads
+  if(currentView==='coaches') setCoachGroup('matchday');
 }
 
 function renderPlayerView(){
@@ -1443,14 +1594,38 @@ function renderOverview(){
   const d=getD(),m=d.mkl,o=d.opp;
   const mklPct=pct(m.won,m.total),oppTO=pct(o.lost,o.total);
   const immTO=pct(m.retention.immediate,m.won),cleanPct=pct(m.cleanPoss,m.won);
-  document.getElementById('overview-cards').innerHTML=[
-    {l:'Own KO Win %',v:mklPct+'%',s:`${m.won}/${m.total} kickouts`,n:mklPct},
-    {l:'Opp Turnovers %',v:oppTO+'%',s:`Won ${o.lost}/${o.total} opp KOs`,n:oppTO},
-    {l:'2-Phase Retention',v:m.twoPhasePct+'%',s:`${m.retention.controlled} controlled of ${m.won} won`,n:m.twoPhasePct},
-    {l:'Positive Attack %',v:m.exitSuccess+'%',s:'Score or foul from won KO',n:m.exitSuccess},
-    {l:'Clean Possession',v:cleanPct+'%',s:`${m.cleanPoss} clean of ${m.won} won`,n:cleanPct},
-    {l:'Scores Conceded Rate',v:pct(o.resulting?.Score||0,o.won)+'%',s:'From opp retained kickouts',n:100-pct(o.resulting?.Score||0,o.won)},
-  ].map(c=>`<div class="card"><div class="card-label">${c.l}</div><div class="card-value" style="color:${colorFor(c.n)}">${c.v}</div><div class="prog-wrap"><div class="prog-bar" style="width:${parseInt(c.v)}%;background:${colorFor(c.n)}"></div></div><div class="card-sub">${c.s}</div></div>`).join('');
+  const scoresConcPct=pct(o.resulting?.Score||0,o.won);
+  const kpiCards=[
+    {id:'own-ko',   l:'Own KO Win %',      v:mklPct,     unit:'%', s:`${m.won}/${m.total} kickouts won`,
+      detail:`Short: ${pct(m.byLength.S?.w||0,m.byLength.S?.t||1)}% &nbsp;|&nbsp; Mid: ${pct(m.byLength.M?.w||0,m.byLength.M?.t||1)}% &nbsp;|&nbsp; Long: ${pct(m.byLength.L?.w||0,m.byLength.L?.t||1)}%<br>Under press: ${pct(m.pressure.heavy.w,m.pressure.heavy.t)}% &nbsp;|&nbsp; No press: ${pct(m.pressure.none.w,m.pressure.none.t)}%`},
+    {id:'opp-to',   l:'Opp Turnovers %',   v:oppTO,      unit:'%', s:`Won ${o.lost}/${o.total} opp kickouts`,
+      detail:`Short: ${pct(o.pressByLength?.S?.mkl||0,o.pressByLength?.S?.t||1)}% &nbsp;|&nbsp; Mid: ${pct(o.pressByLength?.M?.mkl||0,o.pressByLength?.M?.t||1)}% &nbsp;|&nbsp; Long: ${pct(o.pressByLength?.L?.mkl||0,o.pressByLength?.L?.t||1)}%`},
+    {id:'two-phase',l:'2-Phase Retention',  v:m.twoPhasePct,unit:'%',s:`${m.retention.controlled} controlled of ${m.won} won`,
+      detail:`Controlled (4+): ${m.retention.controlled} &nbsp;|&nbsp; Short (2–3): ${m.retention.short} &nbsp;|&nbsp; Imm. TO: ${m.retention.immediate}<br>1st half: ${m.half.first.ctrl}% &nbsp;|&nbsp; 2nd half: ${m.half.second.ctrl}%`},
+    {id:'pos-att',  l:'Positive Attack %',  v:m.exitSuccess,unit:'%',s:'Score or foul won from won KO',
+      detail:`Scores: ${m.resulting?.Score||0} &nbsp;|&nbsp; Foul Won: ${m.resulting?.['Foul Won']||0} &nbsp;|&nbsp; Wides: ${m.resulting?.Wide||0}<br>Turnovers after winning: ${m.resulting?.Turnover||0}`},
+    {id:'clean-p',  l:'Clean Possession',   v:cleanPct,   unit:'%', s:`${m.cleanPoss} clean of ${m.won} won`,
+      detail:`Clean Catch: ${m.won-m.cleanPoss>0?m.cleanPoss:m.cleanPoss} &nbsp;|&nbsp; Contested/Breaking Ball: ${m.won-m.cleanPoss}`},
+    {id:'sc-rate',  l:'Scores Conceded',    v:scoresConcPct,unit:'%',s:'From opp retained kickouts',
+      detail:`Scores against: ${o.resulting?.Score||0} from ${o.won} retained &nbsp;|&nbsp; Turnovers after they win: ${o.resulting?.Turnover||0}`},
+  ];
+  document.getElementById('overview-cards').innerHTML=kpiCards.map(c=>`
+    <div class="card kpi-expandable" onclick="toggleKpiCard('${c.id}')"
+      style="cursor:pointer;transition:border-color .2s"
+      onmouseover="this.style.borderColor='var(--accent)'"
+      onmouseout="this.style.borderColor=''">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div class="card-label">${c.l}</div>
+        <span id="kpi-icon-${c.id}" style="font-size:11px;color:var(--muted);margin-left:6px">&#9660;</span>
+      </div>
+      <div class="card-value" style="color:${colorFor(c.v)}">${c.v}${c.unit}</div>
+      <div class="prog-wrap"><div class="prog-bar" style="width:${c.v}%;background:${colorFor(c.v)}"></div></div>
+      <div class="card-sub">${c.s}</div>
+      <div id="kpi-detail-${c.id}" style="display:none;margin-top:10px;padding-top:10px;
+        border-top:1px solid var(--border);font-size:11px;color:var(--muted);line-height:1.7">
+        ${c.detail}
+      </div>
+    </div>`).join('');
 
   document.getElementById('benchmark-section').innerHTML=`<div class="chart-card"><div class="chart-title">KPI Benchmarks vs Targets</div><div class="chart-sub">White line = target threshold</div>${
     [{l:'Own KO Win %',v:mklPct,t:75},{l:'2-Phase Retention',v:m.twoPhasePct,t:70},
@@ -2115,6 +2290,7 @@ function setView(v){
   document.getElementById('coach-view').style.display=v==='coaches'?'block':'none';
   document.getElementById('glossary-view').style.display=v==='glossary'?'block':'none';
   document.getElementById('clips-view').style.display=v==='clips'?'block':'none';
+  if(v==='coaches' && MATCHES['all']) setCoachGroup('matchday');
 }
 
 const obs=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible');}),{threshold:0.06});
