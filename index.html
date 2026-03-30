@@ -578,7 +578,7 @@ tr:hover td{background:var(--surface2)}
           <div class="glossary-term">2-Phase Retention % <span class="glossary-tag kpi">KPI</span></div>
           <div class="glossary-def">Of the kickouts we win, how many do we still have possession of after two or more phases of play? A &quot;phase&quot; is one sequence of possession &mdash; a carry, pass, tackle won, etc. Winning the first ball is only step one. If we immediately turn it over, the kickout was wasted. 2-Phase Retention shows whether we actually secure the restart and build from it.</div>
           <div class="glossary-example"><strong>Example:</strong> We win 12 kickouts. 7 lead to controlled possession of 4+ actions. 2-Phase Retention = 58%. The other 5 were turned over quickly.</div>
-          <div class="glossary-target">&#127919; Target: 55%+</div>
+          <div class="glossary-target">&#127919; Target: 60%+</div>
         </div>
 
         <div class="glossary-card kpi-card" data-terms="positive attack score foul outcome attack">
@@ -595,11 +595,18 @@ tr:hover td{background:var(--surface2)}
           <div class="glossary-target">&#127919; Target: 75%+</div>
         </div>
 
+        <div class="glossary-card kpi-card" data-terms="possession shot poss to shot p2s attempt wide score shooting">
+          <div class="glossary-term">Possession to Shot % <span class="glossary-tag kpi">KPI</span></div>
+          <div class="glossary-def">Of the kickouts we win, what percentage result in a shot attempt? This includes scores, wides, shots saved and drop shots &mdash; any possession that reached a shooting position. This differs from Positive Attack % in that it focuses purely on whether we created a shot, regardless of whether it went over the bar. A high Possession to Shot % with a low score rate suggests shooting accuracy is the problem rather than the kickout system itself.</div>
+          <div class="glossary-example"><strong>Example:</strong> We win 22 kickouts. 7 end in a shot of some kind (4 scores, 2 wides, 1 shot saved). Possession to Shot % = 32%.</div>
+          <div class="glossary-target">&#127919; Target: 55%+</div>
+        </div>
+
         <div class="glossary-card danger-card" data-terms="immediate turnover loss quick pressure lose">
           <div class="glossary-term">Immediate Turnover % <span class="glossary-tag danger">Warning</span></div>
           <div class="glossary-def">Of the kickouts we win, how many do we lose within 0&ndash;1 actions? This is the worst possible outcome after winning a kickout &mdash; we get the ball and immediately give it back. This usually happens because the first receiver is under too much pressure or makes a poor decision. Keeping this low is critical.</div>
           <div class="glossary-example"><strong>Example:</strong> We win 22 kickouts. 5 are turned over within one action. Immediate TO % = 23% &mdash; too high.</div>
-          <div class="glossary-target">&#127919; Target: below 15%</div>
+          <div class="glossary-target">&#127919; Target: below 10%</div>
         </div>
 
       </div>
@@ -879,6 +886,8 @@ tr:hover td{background:var(--surface2)}
 </div>
 
 <script>
+// MKL Gaels Dashboard — built 2026-03-30 09:47:12
+
 // MKL Gaels Dashboard — built 2026-03-30 09:26:01
 
 // MKL Gaels Dashboard — built 2026-03-29 01:04:20
@@ -1483,7 +1492,7 @@ function renderPlayerView(){
   const heroCards=[
     {n:mklPct,    l:'Our KO Win %',   tgt:75, col:kpiCol(mklPct,75,60)},
     {n:oppTO,     l:'Opp Turnovers',  tgt:40, col:kpiCol(oppTO,40,25)},
-    {n:m.twoPhasePct, l:'2-Phase Retain', tgt:70, col:kpiCol(m.twoPhasePct,70,55)},
+    {n:m.twoPhasePct, l:'2-Phase Retain', tgt:60, col:kpiCol(m.twoPhasePct,60,45)},
     {n:m.exitSuccess, l:'Positive Attack',tgt:50, col:kpiCol(m.exitSuccess,50,35)},
     {n:sWin,      l:'Short Win %',    tgt:75, col:kpiCol(sWin,75,60)},
   ];
@@ -1552,7 +1561,7 @@ function renderOverview(){
     {id:'opp-to',   l:'Opp Turnovers %',   v:oppTO,         tgt:40, amb:25, inv:false, unit:'%',
       s:`Won ${o.lost}/${o.total} opp kickouts`,
       detail:`Short: ${pct(o.pressByLength?.S?.mkl||0,o.pressByLength?.S?.t||1)}% &nbsp;|&nbsp; Mid: ${pct(o.pressByLength?.M?.mkl||0,o.pressByLength?.M?.t||1)}% &nbsp;|&nbsp; Long: ${pct(o.pressByLength?.L?.mkl||0,o.pressByLength?.L?.t||1)}%`},
-    {id:'two-phase',l:'2-Phase Retention', v:m.twoPhasePct, tgt:70, amb:55, inv:false, unit:'%',
+    {id:'two-phase',l:'2-Phase Retention', v:m.twoPhasePct, tgt:60, amb:45, inv:false, unit:'%',
       s:`${m.retention.controlled} controlled of ${m.won} won`,
       detail:`Controlled (4+): ${m.retention.controlled} &nbsp;|&nbsp; Short (2–3): ${m.retention.short} &nbsp;|&nbsp; Imm. TO: ${m.retention.immediate}<br>1st half: ${m.half.first.ctrl}% &nbsp;|&nbsp; 2nd half: ${m.half.second.ctrl}%`},
     {id:'pos-att',  l:'Positive Attack %', v:m.exitSuccess, tgt:50, amb:35, inv:false, unit:'%',
@@ -1595,7 +1604,7 @@ function renderOverview(){
   }).join('');
 
   document.getElementById('benchmark-section').innerHTML=`<div class="chart-card"><div class="chart-title">KPI Benchmarks vs Targets</div><div class="chart-sub">White line = target threshold</div>${
-    [{l:'Own KO Win %',v:mklPct,t:75},{l:'2-Phase Retention',v:m.twoPhasePct,t:70},
+    [{l:'Own KO Win %',v:mklPct,t:75},{l:'2-Phase Retention',v:m.twoPhasePct,t:60},
      {l:'Possession to Shot %',v:m.possToShotPct||0,t:55},{l:'Immediate TO %',v:immTO,t:10,inv:true},
      {l:'Positive Attack %',v:m.exitSuccess,t:50},{l:'Opp Turnover %',v:oppTO,t:40}
     ].map(b=>{const col=hexFor(b.v);
@@ -1606,7 +1615,7 @@ function renderOverview(){
   const p2s=m.possToShotPct||0;
   document.getElementById('kpi-body').innerHTML=[
     {kpi:'Own KO Win %',          v:mklPct,         bench:'≥75%',  tGreen:75, tAmber:60, inv:false},
-    {kpi:'2-Phase Retention',     v:m.twoPhasePct,  bench:'≥70%',  tGreen:70, tAmber:55, inv:false},
+    {kpi:'2-Phase Retention',     v:m.twoPhasePct,  bench:'≥60%',  tGreen:60, tAmber:45, inv:false},
     {kpi:'Possession to Shot %',  v:p2s,            bench:'≥55%',  tGreen:55, tAmber:40, inv:false},
     {kpi:'Immediate TO %',        v:immTO,          bench:'<10%',  tGreen:10, tAmber:20, inv:true},
     {kpi:'Positive Attack %',     v:m.exitSuccess,  bench:'≥50%',  tGreen:50, tAmber:35, inv:false},
@@ -1695,7 +1704,7 @@ function renderTrend(){
   function dotCol(v,g,w,inv=false){if(inv)return v<=g?'var(--green)':v<=w?'var(--amber)':'var(--red)';return v>=g?'var(--green)':v>=w?'var(--amber)':'var(--red)';}
   function halfCard(half,ret,isFirst){
     const cls=ret>=60?'good-half':'bad-half';
-    const rows=[{l:'Retention:',v:ret+'%',dot:dotCol(ret,75,50)},{l:'Controlled %:',v:half.ctrl+'%',dot:dotCol(half.ctrl,70,50)},{l:'Poss-to-Shot:',v:half.p2s+'%',dot:dotCol(half.p2s,55,35)},{l:'Immediate TO:',v:half.immTO+'%',dot:dotCol(half.immTO,15,25,true)}];
+    const rows=[{l:'Retention:',v:ret+'%',dot:dotCol(ret,75,50)},{l:'Controlled %:',v:half.ctrl+'%',dot:dotCol(half.ctrl,60,45)},{l:'Poss-to-Shot:',v:half.p2s+'%',dot:dotCol(half.p2s,55,35)},{l:'Immediate TO:',v:half.immTO+'%',dot:dotCol(half.immTO,15,25,true)}];
     const assess=ret>=65?(isFirst?'Control Established':'Good 2nd Half'):(isFirst?'Difficult 1st Half':'Control Lost');
     return `<div class="trend-half ${cls}"><h3>${isFirst?'1st Half':'2<sup style="font-size:10px">nd</sup> Half'}</h3>${rows.map(r=>`<div class="trend-row-item"><span style="color:#ccc;font-size:12px">${r.l}</span><div class="trend-val-wrap"><span class="trend-pct">${r.v}</span><span class="trend-dot" style="background:${r.dot}"></span></div></div>`).join('')}<div class="trend-assess"><div class="trend-assess-title">ASSESSMENT: ${assess}</div><div class="trend-bullet">${ret>=65?'Retention above target &#8212; good ball security':'Retention below target &#8212; kickout control dropped'}</div><div class="trend-bullet">${half.ctrl>=60?'Controlled possession maintained':'Ball being lost too quickly after winning'}</div></div></div>`;
   }
@@ -2220,7 +2229,7 @@ function buildCardPreview(){
 
   const focus=[];
   if(mklPct<75) focus.push('Win more own kickouts ('+mklPct+'%, target 75%+)');
-  if(m.twoPhasePct<70) focus.push('Hold longer after winning ('+m.twoPhasePct+'%, target 70%+)');
+  if(m.twoPhasePct<60) focus.push('Hold longer after winning ('+m.twoPhasePct+'%, target 70%+)');
   if(oppTO<40) focus.push('Win more opp kickouts ('+oppTO+'%, target 40%+)');
   if(m.exitSuccess<50) focus.push('More positive attacks ('+m.exitSuccess+'%)');
   if(focus.length===0) focus.push('All KPIs on target \u2014 maintain standards');
@@ -2310,7 +2319,7 @@ function copyCardText(){
 
   const focus=[];
   if(mklPct<75) focus.push('Win more own kickouts ('+mklPct+'%, target 75%+)');
-  if(m.twoPhasePct<70) focus.push('Hold longer after winning ('+m.twoPhasePct+'%, target 70%+)');
+  if(m.twoPhasePct<60) focus.push('Hold longer after winning ('+m.twoPhasePct+'%, target 70%+)');
   if(oppTO<40) focus.push('Win more opp kickouts ('+oppTO+'%, target 40%+)');
   if(m.exitSuccess<50) focus.push('More positive attacks ('+m.exitSuccess+'%)');
   if(focus.length===0) focus.push('All KPIs on target \u2014 maintain standards');
@@ -2384,6 +2393,7 @@ document.querySelectorAll('.section').forEach(s=>obs.observe(s));
 
 setInterval(()=>loadData(false),5*60*1000);
 loadData();
+
 
 
 
