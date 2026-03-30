@@ -540,7 +540,6 @@ tr:hover td{background:var(--surface2)}
     <div id="sec-body-action">
     <div style="background:rgba(88,166,255,.08);border:1px solid var(--accent);border-radius:var(--r);padding:13px;margin-bottom:14px"><strong style="color:var(--accent)">Verdict:</strong> <span id="verdict-text"></span></div>
     <div class="action-grid" id="action-cards"></div>
-    <div class="card-grid" style="margin-top:14px" id="target-cards"></div>
   </div>
     </div>
   </div>
@@ -880,7 +879,7 @@ tr:hover td{background:var(--surface2)}
 </div>
 
 <script>
-// MKL Gaels Dashboard — built 2026-03-30 09:09:33
+// MKL Gaels Dashboard — built 2026-03-30 09:26:01
 
 // MKL Gaels Dashboard — built 2026-03-29 01:04:20
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzm3SSnw5_7PYhzd5MEhxUe3UicSXZCDA0eupLk_5O32B9Z09bPVlmqEJ0lOOG8TI8/exec';
@@ -1541,22 +1540,38 @@ function renderOverview(){
   const mklPct=pct(m.won,m.total),oppTO=pct(o.lost,o.total);
   const immTO=pct(m.retention.immediate,m.won),cleanPct=pct(m.cleanPoss,m.won);
   const scoresConcPct=pct(o.resulting?.Score||0,o.won);
+  // Per-KPI colour helper for overview cards
+  function kpiColOv(v,tgt,amber,inv=false){
+    if(inv) return v<=tgt?'var(--green)':v<=amber?'var(--amber)':'var(--red)';
+    return v>=tgt?'var(--green)':v>=amber?'var(--amber)':'var(--red)';
+  }
   const kpiCards=[
-    {id:'own-ko',   l:'Own KO Win %',      v:mklPct,     unit:'%', s:`${m.won}/${m.total} kickouts won`,
+    {id:'own-ko',   l:'Own KO Win %',      v:mklPct,        tgt:75, amb:60, inv:false, unit:'%',
+      s:`${m.won}/${m.total} kickouts won`,
       detail:`Short: ${pct(m.byLength.S?.w||0,m.byLength.S?.t||1)}% &nbsp;|&nbsp; Mid: ${pct(m.byLength.M?.w||0,m.byLength.M?.t||1)}% &nbsp;|&nbsp; Long: ${pct(m.byLength.L?.w||0,m.byLength.L?.t||1)}%<br>Under press: ${pct(m.pressure.heavy.w,m.pressure.heavy.t)}% &nbsp;|&nbsp; No press: ${pct(m.pressure.none.w,m.pressure.none.t)}%`},
-    {id:'opp-to',   l:'Opp Turnovers %',   v:oppTO,      unit:'%', s:`Won ${o.lost}/${o.total} opp kickouts`,
+    {id:'opp-to',   l:'Opp Turnovers %',   v:oppTO,         tgt:40, amb:25, inv:false, unit:'%',
+      s:`Won ${o.lost}/${o.total} opp kickouts`,
       detail:`Short: ${pct(o.pressByLength?.S?.mkl||0,o.pressByLength?.S?.t||1)}% &nbsp;|&nbsp; Mid: ${pct(o.pressByLength?.M?.mkl||0,o.pressByLength?.M?.t||1)}% &nbsp;|&nbsp; Long: ${pct(o.pressByLength?.L?.mkl||0,o.pressByLength?.L?.t||1)}%`},
-    {id:'two-phase',l:'2-Phase Retention',  v:m.twoPhasePct,unit:'%',s:`${m.retention.controlled} controlled of ${m.won} won`,
+    {id:'two-phase',l:'2-Phase Retention', v:m.twoPhasePct, tgt:70, amb:55, inv:false, unit:'%',
+      s:`${m.retention.controlled} controlled of ${m.won} won`,
       detail:`Controlled (4+): ${m.retention.controlled} &nbsp;|&nbsp; Short (2–3): ${m.retention.short} &nbsp;|&nbsp; Imm. TO: ${m.retention.immediate}<br>1st half: ${m.half.first.ctrl}% &nbsp;|&nbsp; 2nd half: ${m.half.second.ctrl}%`},
-    {id:'pos-att',  l:'Positive Attack %',  v:m.exitSuccess,unit:'%',s:'Score or foul won from won KO',
+    {id:'pos-att',  l:'Positive Attack %', v:m.exitSuccess, tgt:50, amb:35, inv:false, unit:'%',
+      s:'Shot attempt or foul won from won KO',
       detail:`Scores: ${m.resulting?.Score||0} &nbsp;|&nbsp; Foul Won: ${m.resulting?.['Foul Won']||0} &nbsp;|&nbsp; Wides: ${m.resulting?.Wide||0}<br>Turnovers after winning: ${m.resulting?.Turnover||0}`},
-    {id:'clean-p',  l:'Clean Possession',   v:cleanPct,   unit:'%', s:`${m.cleanPoss} clean of ${m.won} won`,
-      detail:`Clean Catch: ${m.won-m.cleanPoss>0?m.cleanPoss:m.cleanPoss} &nbsp;|&nbsp; Contested/Breaking Ball: ${m.won-m.cleanPoss}`},
-    {id:'sc-rate',  l:'Scores Conceded',    v:scoresConcPct,unit:'%',s:'From opp retained kickouts',
+    {id:'clean-p',  l:'Clean Possession',  v:cleanPct,      tgt:75, amb:60, inv:false, unit:'%',
+      s:`${m.cleanPoss} clean of ${m.won} won`,
+      detail:`Clean Catch: ${m.cleanPoss} &nbsp;|&nbsp; Contested/Breaking Ball: ${m.won-m.cleanPoss}`},
+    {id:'sc-rate',  l:'Scores Conceded',   v:scoresConcPct, tgt:15, amb:25, inv:true,  unit:'%',
+      s:'From opp retained kickouts',
       detail:`Scores against: ${o.resulting?.Score||0} from ${o.won} retained &nbsp;|&nbsp; Turnovers after they win: ${o.resulting?.Turnover||0}`},
   ];
-  document.getElementById('overview-cards').innerHTML=kpiCards.map(c=>`
-    <div class="card kpi-expandable" onclick="toggleKpiCard('${c.id}')"
+  document.getElementById('overview-cards').innerHTML=kpiCards.map(c=>{
+    const col=kpiColOv(c.v,c.tgt,c.amb,c.inv);
+    const onTarget=c.inv?(c.v<=c.tgt):(c.v>=c.tgt);
+    const gap=onTarget
+      ? '<span style="color:var(--green);font-weight:600">&#9989; On target</span>'
+      : '<span style="color:var(--red);font-weight:600">'+(c.v-c.tgt)+'%</span>';
+    return `<div class="card kpi-expandable" onclick="toggleKpiCard('${c.id}')"
       style="cursor:pointer;transition:border-color .2s"
       onmouseover="this.style.borderColor='var(--accent)'"
       onmouseout="this.style.borderColor=''">
@@ -1564,14 +1579,20 @@ function renderOverview(){
         <div class="card-label">${c.l}</div>
         <span id="kpi-icon-${c.id}" style="font-size:11px;color:var(--muted);margin-left:6px">&#9660;</span>
       </div>
-      <div class="card-value" style="color:${colorFor(c.v)}">${c.v}${c.unit}</div>
-      <div class="prog-wrap"><div class="prog-bar" style="width:${c.v}%;background:${colorFor(c.v)}"></div></div>
-      <div class="card-sub">${c.s}</div>
+      <div class="card-value" style="color:${col}">${c.v}${c.unit}</div>
+      <div class="prog-wrap"><div class="prog-bar" style="width:${c.v}%;background:${col}"></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:5px">
+        <div class="card-sub" style="margin:0">${c.s}</div>
+        <div style="font-size:11px;text-align:right;white-space:nowrap;margin-left:6px">
+          <span style="color:var(--muted)">Tgt ${c.tgt}%</span>&nbsp;${gap}
+        </div>
+      </div>
       <div id="kpi-detail-${c.id}" style="display:none;margin-top:10px;padding-top:10px;
         border-top:1px solid var(--border);font-size:11px;color:var(--muted);line-height:1.7">
         ${c.detail}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   document.getElementById('benchmark-section').innerHTML=`<div class="chart-card"><div class="chart-title">KPI Benchmarks vs Targets</div><div class="chart-sub">White line = target threshold</div>${
     [{l:'Own KO Win %',v:mklPct,t:75},{l:'2-Phase Retention',v:m.twoPhasePct,t:70},
@@ -1730,27 +1751,6 @@ function renderTactical(){
   ].map(a=>`<div class="action-card"><div class="action-num">${a.n}</div><div class="action-title">${a.t}</div><div class="action-body">${a.b}</div></div>`).join('');
 
   const immTO=pct(m.retention.immediate,m.won); // local to renderTactical
-  document.getElementById('target-cards').innerHTML=[
-    {l:'Own KO Win %',      cur:mklPct,             tgt:75, n:mklPct},
-    {l:'2-Phase Retention', cur:m.twoPhasePct,       tgt:70, n:m.twoPhasePct},
-    {l:'Possession to Shot',cur:m.possToShotPct||0,  tgt:55, n:m.possToShotPct||0},
-    {l:'Immediate TO %',    cur:immTO,               tgt:10, n:100-immTO},
-    {l:'Opp Press Target',  cur:oppTO,               tgt:40, n:oppTO},
-    {l:'Positive Attack',   cur:m.exitSuccess,        tgt:50, n:m.exitSuccess},
-  ].map(c=>{
-    const col=colorFor(c.n);
-    const gap=c.cur>=c.tgt?'+'+Math.abs(c.cur-c.tgt)+'%':(c.cur-c.tgt)+'%';
-    const gapCol=c.cur>=c.tgt?'var(--green)':'var(--red)';
-    return `<div class="card" style="border-left:3px solid ${col}">
-      <div class="card-label">&#127919; ${c.l}</div>
-      <div class="card-value" style="color:${col}">${c.cur}%</div>
-      <div class="prog-wrap"><div class="prog-bar" style="width:${c.cur}%;background:${col}"></div></div>
-      <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:11px">
-        <span style="color:var(--muted)">Target: ${c.tgt}%</span>
-        <span style="color:${gapCol};font-weight:600">${gap}</span>
-      </div>
-    </div>`;
-  }).join('');
 }
 
 
