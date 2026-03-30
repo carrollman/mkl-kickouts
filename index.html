@@ -583,7 +583,7 @@ tr:hover td{background:var(--surface2)}
 
         <div class="glossary-card kpi-card" data-terms="positive attack score foul outcome attack">
           <div class="glossary-term">Positive Attack % <span class="glossary-tag kpi">KPI</span></div>
-          <div class="glossary-def">Of the kickouts we win, what percentage result in a shot attempt or a foul won? This includes scores, wides, shots saved, and drop shots &mdash; any possession that reached a shooting position counts as positive. A wide is still a positive outcome because it means the attack created a genuine scoring opportunity from the kickout. It skips all the middle phases and asks: did winning this kickout get us into an attacking position?</div>
+          <div class="glossary-def">Of the kickouts we win, what percentage result in a shot attempt or a foul won? This includes scores, wides, shots saved, and drop shots &mdash; any possession that reached a shooting position OR drew a foul counts as positive. A wide is still a positive outcome because it means the attack created a genuine scoring opportunity. Foul Won is included here (but not in Possession to Shot %) because drawing a foul means you created enough threat to force a defensive error. It skips all the middle phases and asks: did winning this kickout get us into an attacking position?</div>
           <div class="glossary-example"><strong>Example:</strong> We win 22 kickouts. 9 end in a score, wide, or foul won. Positive Attack % = 41%. If we also had 1 wide that wasn&apos;t previously counted, the figure becomes 45%.</div>
           <div class="glossary-target">&#127919; Target: 50%+</div>
         </div>
@@ -597,8 +597,8 @@ tr:hover td{background:var(--surface2)}
 
         <div class="glossary-card kpi-card" data-terms="possession shot poss to shot p2s attempt wide score shooting">
           <div class="glossary-term">Possession to Shot % <span class="glossary-tag kpi">KPI</span></div>
-          <div class="glossary-def">Of the kickouts we win, what percentage result in a shot attempt? This includes scores, wides, shots saved and drop shots &mdash; any possession that reached a shooting position. This differs from Positive Attack % in that it focuses purely on whether we created a shot, regardless of whether it went over the bar. A high Possession to Shot % with a low score rate suggests shooting accuracy is the problem rather than the kickout system itself.</div>
-          <div class="glossary-example"><strong>Example:</strong> We win 22 kickouts. 7 end in a shot of some kind (4 scores, 2 wides, 1 shot saved). Possession to Shot % = 32%.</div>
+          <div class="glossary-def">Of the kickouts we win, what percentage result in an actual shot attempt? This includes scores, wides, shots saved and drop shots. It does not include fouls won &mdash; that is measured separately in Positive Attack %. The distinction matters: Poss-to-Shot tells you whether the kickout system is getting us into shooting positions, while Positive Attack tells you whether we are creating any scoring threat (shot or foul). A high Poss-to-Shot with a low score rate points to a shooting execution problem, not a kickout system problem.</div>
+          <div class="glossary-example"><strong>Example:</strong> We win 22 kickouts. 7 result in a shot (4 scores, 2 wides, 1 shot saved). Possession to Shot % = 32%. If 2 more ended in fouls won, Positive Attack % = 41% while Poss-to-Shot stays at 32%.</div>
           <div class="glossary-target">&#127919; Target: 55%+</div>
         </div>
 
@@ -886,6 +886,10 @@ tr:hover td{background:var(--surface2)}
 </div>
 
 <script>
+// MKL Gaels Dashboard — built 2026-03-30 10:48:22
+
+// MKL Gaels Dashboard — built 2026-03-30 10:33:55
+
 // MKL Gaels Dashboard — built 2026-03-30 09:47:12
 
 // MKL Gaels Dashboard — built 2026-03-30 09:26:01
@@ -1098,13 +1102,16 @@ function buildMatchData(rows){
     });
 
     // ── Pressure ─────────────────────────────────────────────
+    // Normalise pressure values — handles blank, 'No Press', 'None', 'no pressure' etc.
+    const getPress=r=>(r['Pressure on Receiver']||'').trim();
+    const isNoPress=r=>{const p=getPress(r).toLowerCase();return p===''||p==='no press'||p==='none'||p==='no pressure';};
     const pressure={
-      heavy:{t:mkl.filter(r=>r['Pressure on Receiver']==='Heavy').length,
-             w:mkl.filter(r=>r['Pressure on Receiver']==='Heavy'&&r['Outcome (Primary)']==='Won').length},
-      light:{t:mkl.filter(r=>r['Pressure on Receiver']==='Light').length,
-             w:mkl.filter(r=>r['Pressure on Receiver']==='Light'&&r['Outcome (Primary)']==='Won').length},
-      none:{t:mkl.filter(r=>(!r['Pressure on Receiver']||r['Pressure on Receiver']==='')&&r['Length']).length,
-            w:mkl.filter(r=>(!r['Pressure on Receiver']||r['Pressure on Receiver']==='')&&r['Length']&&r['Outcome (Primary)']==='Won').length}
+      heavy:{t:mkl.filter(r=>getPress(r)==='Heavy').length,
+             w:mkl.filter(r=>getPress(r)==='Heavy'&&r['Outcome (Primary)']==='Won').length},
+      light:{t:mkl.filter(r=>getPress(r)==='Light').length,
+             w:mkl.filter(r=>getPress(r)==='Light'&&r['Outcome (Primary)']==='Won').length},
+      none:{t:mkl.filter(r=>isNoPress(r)&&r['Length']).length,
+            w:mkl.filter(r=>isNoPress(r)&&r['Length']&&r['Outcome (Primary)']==='Won').length}
     };
 
     // ── Retention ─────────────────────────────────────────────
@@ -1134,7 +1141,7 @@ function buildMatchData(rows){
       const sub=mkl.filter(r=>r['Tactical Call']===call);
       const w=sub.filter(r=>r['Outcome (Primary)']==='Won');
       const pos=w.filter(r=>['Score','Foul Won'].includes(r['Resulting Outcome']));
-      const heavy=sub.filter(r=>r['Pressure on Receiver']==='Heavy');
+      const heavy=sub.filter(r=>getPress(r)==='Heavy');
       const heavyW=heavy.filter(r=>r['Outcome (Primary)']==='Won');
       tacticalCalls[call]={n:sub.length,won:w.length,winPct:pct(w.length,sub.length),
         posPct:pct(pos.length,w.length),heavyN:heavy.length,heavyWon:heavyW.length,
@@ -1157,6 +1164,8 @@ function buildMatchData(rows){
       mklWon.filter(r=>SHOT_POS.includes(r['Resulting Outcome'])||SHOT_POS.includes(r['Resulting Action'])).length,
       mklWon.length
     );
+    // SHOT_VALS = actual shot attempts only (no Foul Won — you drew a foul, didn't shoot)
+    // SHOT_POS  = positive outcome (shot attempt OR foul won) — used for exitSuccess
     const SHOT_VALS=['Score','Wide','Shot Saved','Drop Shot'];
     const shotKOs=mklWon.filter(r=>SHOT_VALS.includes(r['Resulting Outcome'])||SHOT_VALS.includes(r['Resulting Action']));
     const possToShotPct=pct(shotKOs.length,mklWon.length);
@@ -1260,11 +1269,13 @@ function buildMatchData(rows){
       oppResulting[outcome]=oppWon.filter(r=>r['Resulting Outcome']===outcome).length;
     });
 
-    // ── Turnover phase ────────────────────────────────────────
+    // ── Turnover phase — scoped to MKL won kickouts that ended in a turnover ──
+    const mklTurnovers=mklWon.filter(r=>
+      r['Resulting Outcome']==='Turnover'||r['Resulting Action']==='Turnover');
     const turnoverPhase={
-      AttackBuildUp:subset.filter(r=>r['Turnover Phase']==='Attack Build-Up').length,
-      ShotAttempt:subset.filter(r=>r['Turnover Phase']==='Shot Attempt').length,
-      ExitPass:subset.filter(r=>r['Turnover Phase']==='Exit Pass').length
+      AttackBuildUp:mklTurnovers.filter(r=>r['Turnover Phase']==='Attack Build-Up').length,
+      ShotAttempt:mklTurnovers.filter(r=>r['Turnover Phase']==='Shot Attempt').length,
+      ExitPass:mklTurnovers.filter(r=>r['Turnover Phase']==='Exit Pass').length
     };
 
     // ── Scenario matrix ───────────────────────────────────────
@@ -1273,8 +1284,8 @@ function buildMatchData(rows){
       scenarioMatrix[label]={};
       ['S','M','L'].forEach(len=>{
         const sub=key===''
-          ?mkl.filter(r=>(!r['Pressure on Receiver']||r['Pressure on Receiver']==='')&&r['Length']===len)
-          :mkl.filter(r=>r['Pressure on Receiver']===key&&r['Length']===len);
+          ?mkl.filter(r=>isNoPress(r)&&r['Length']===len)
+          :mkl.filter(r=>getPress(r)===key&&r['Length']===len);
         if(sub.length===0){scenarioMatrix[label][len]='--';return;}
         scenarioMatrix[label][len]=pct(sub.filter(r=>r['Outcome (Primary)']==='Won').length,sub.length)+'%';
       });
@@ -1293,13 +1304,13 @@ function buildMatchData(rows){
       .slice(0,2);
 
     // ── Pre-computed decision tree subsets ────────────────────
-    const h2HeavyLong=mkl.filter(r=>r['Half'].trim()==='2nd'&&r['Pressure on Receiver']==='Heavy'&&r['Length']==='L');
+    const h2HeavyLong=mkl.filter(r=>r['Half'].trim()==='2nd'&&getPress(r)==='Heavy'&&r['Length']==='L');
     const h2HeavyLongWin=h2HeavyLong.filter(r=>r['Outcome (Primary)']==='Won');
-    const noPressZ4=mkl.filter(r=>(!r['Pressure on Receiver']||r['Pressure on Receiver']==='')&&r['Zone']==='Z4');
+    const noPressZ4=mkl.filter(r=>isNoPress(r)&&r['Zone']==='Z4');
     const noPressZ4Win=noPressZ4.filter(r=>r['Outcome (Primary)']==='Won');
-    const noPressZ2=mkl.filter(r=>(!r['Pressure on Receiver']||r['Pressure on Receiver']==='')&&r['Zone']==='Z2');
+    const noPressZ2=mkl.filter(r=>isNoPress(r)&&r['Zone']==='Z2');
     const noPressZ2Win=noPressZ2.filter(r=>r['Outcome (Primary)']==='Won');
-    const h2HeavyShort=mkl.filter(r=>r['Half'].trim()==='2nd'&&r['Pressure on Receiver']==='Heavy'&&r['Length']==='S');
+    const h2HeavyShort=mkl.filter(r=>r['Half'].trim()==='2nd'&&getPress(r)==='Heavy'&&r['Length']==='S');
     const h2HeavyShortWin=h2HeavyShort.filter(r=>r['Outcome (Primary)']==='Won');
 
     // ── Return ────────────────────────────────────────────────
@@ -1530,7 +1541,7 @@ function renderPlayerView(){
     : 'Press opp kickouts &#8212; more data needed to identify top zones';
 
   document.getElementById('decision-tree-rows').innerHTML=[
-    {c:'Under heavy press',          a:`Go SHORT to Z4/Z2 &#8212; short wins at ${sWin}% with no press needed`},
+    {c:'Under heavy press',          a:`SHORT to Z4/Z2 &#8212; highest current win rate at ${sWin}%`},
     {c:'Heavy press + 2nd half',     a:h2HLtext},
     {c:'Mid game, no press',         a:noPresZ4text},
     {c:'Their kickout',              a:pressZoneText},
@@ -1538,7 +1549,7 @@ function renderPlayerView(){
   ].map(r=>`<div class="decision-row"><div class="decision-if"><div><span>IF</span>${r.c}</div></div><div class="decision-then"><div><span>THEN</span>${r.a}</div></div></div>`).join('');
 
   document.getElementById('player-huddle').innerHTML=[
-    ['Short is safe.',`Short kickouts win at <strong>${sWin}%</strong> &#8212; always the safe call under press.`],
+    ['Short is safe.',`Short kickouts win at <strong>${sWin}%</strong> &#8212; best current option under press.`],
     ['Win it &amp; hold it.',`${m.twoPhasePct}% 2-phase retention. Win the ball then <strong>protect it for 4+ actions</strong> before going forward.`],
     ['Press Z6 &amp; Z9.','When they kick off, flood <strong>Z6 and Z9</strong>. Best turnover zones.'],
   ].map(([h,b],i)=>`<div class="huddle-item"><div class="huddle-num">${i+1}</div><div><div style="font-weight:700;color:var(--gold);margin-bottom:2px">${h}</div><div class="huddle-text">${b}</div></div></div>`).join('');
@@ -1679,7 +1690,7 @@ function renderOwnCharts(){
   const sWin=pct(m.byLength.S?.w||0,m.byLength.S?.t||1);
   const hpWin=pct(m.pressure.heavy.w,m.pressure.heavy.t);
   document.getElementById('own-insights').innerHTML=`
-    <div class="insight-card ${sWin>=75?'good':'warn'}"><div class="insight-label">Short Kickouts &#8212; ${sWin}% Win Rate</div><div class="insight-metric" style="color:${colorFor(sWin)}">${sWin>=75?'Safest option &#8212; use as default under press':'Check short receiver positioning'}</div><div class="irow"><span class="ikey">What we do next:</span>When pressed, call short. Signal must be clear from GK.</div></div>
+    <div class="insight-card ${sWin>=75?'good':'warn'}"><div class="insight-label">Short Kickouts &#8212; ${sWin}% Win Rate</div><div class="insight-metric" style="color:${colorFor(sWin)}">${sWin>=75?'Highest current win rate &#8212; best option under press':'Check short receiver positioning'}</div><div class="irow"><span class="ikey">What we do next:</span>When pressed, call short. Signal must be clear from GK.</div></div>
     <div class="insight-card ${lWin>=50?'warn':'bad'}"><div class="insight-label">Long Kickouts &#8212; ${lWin}% Win Rate (${m.byLength.L?.t||0} kicks)</div><div class="insight-metric" style="color:${colorFor(lWin)}">${lWin<30?'High risk &#8212; avoid unless overload confirmed':'Moderate risk &#8212; use selectively'}</div><div class="irow"><span class="ikey">What we do next:</span>Long only as a planned overload. Never as default under press.</div></div>
     <div class="insight-card ${m.twoPhasePct>=55?'good':'bad'}"><div class="insight-label">2-Phase Retention &#8212; ${m.twoPhasePct}%</div><div class="insight-metric" style="color:${colorFor(m.twoPhasePct)}">${m.twoPhasePct>=55?'Good ball security after kickout win':'Winning the ball but losing it too quickly'}</div><div class="irow"><span class="ikey">What we do next:</span>Win it, carry forward, 4+ actions before going forward.</div></div>
     <div class="insight-card ${hpWin>=50?'warn':'bad'}"><div class="insight-label">Under Heavy Press &#8212; ${hpWin}% Win Rate (${m.pressure.heavy.t} kickouts)</div><div class="insight-metric" style="color:${colorFor(hpWin)}">Press disrupting ${100-hpWin}% of pressed kickouts</div><div class="irow"><span class="ikey">What we do next:</span>GK call-off signal to switch to free runner instantly.</div></div>`;
@@ -1751,7 +1762,7 @@ function renderTactical(){
     ' Below target. Focus on short kickout menu and press-ready receiver drills first.';
 
   document.getElementById('action-cards').innerHTML=[
-    {n:'01',t:'Short First Menu',b:`Short = ${sWin}% win, 0% risk. GK default as short to Z4/Z2.`},
+    {n:'01',t:'Short First Menu',b:`Short = ${sWin}% current win rate. GK default to short when pressed.`},
     {n:'02',t:'Press-Ready Drill',b:`Under heavy press: ${hpWin}% win. Train GK call-off signal and free runner switch.`},
     {n:'03',t:'Carry Over Handpass',b:`Carry leads to ${carryPct}% positive outcomes. First receiver should carry and draw tackle.`},
     {n:'04',t:'2-Phase Hold',b:`${m.twoPhasePct}% 2-phase retention. Win the kickout, 4 actions minimum before going forward.`},
@@ -2222,7 +2233,7 @@ function buildCardPreview(){
   const ozt=o.oppZoneTO||{};
 
   const rules=[];
-  if(sWin>=75) rules.push('IF they sit \u2192 <strong>Short</strong> ('+sWin+'% win rate)');
+  if(sWin>=75) rules.push('IF they sit \u2192 <strong>Short</strong> ('+sWin+'% current win rate)');
   if(hpWin<50) rules.push('IF they press \u2192 <strong>Short only</strong> (Long: '+lWin+'% under press)');
   if(mWin>=70) rules.push('IF space in midfield \u2192 <strong>Quick mid to Z4/Z5</strong>');
   if(rules.length===0) rules.push('<strong>Short</strong> = safest call | <strong>Mid</strong> when space available');
@@ -2262,7 +2273,7 @@ function buildCardPreview(){
         letter-spacing:.8px;margin-bottom:10px">&#128202; Match Snapshot</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         ${[{l:'Own KO',v:mklPct+'%',s:m.won+'/'+m.total+' won',col:hexFor(mklPct)},
-           {l:'Opp KO Won',v:oppTO+'%',s:'Target 40%+',col:hexFor(oppTO)},
+           {l:'MKL Won Opp KO',v:oppTO+'%',s:'Target 40%+',col:hexFor(oppTO)},
            {l:'2-Phase Retain',v:m.twoPhasePct+'%',s:'Target 70%+',col:hexFor(m.twoPhasePct)},
            {l:'Positive Attack',v:m.exitSuccess+'%',s:'Score/foul rate',col:hexFor(m.exitSuccess)},
         ].map(k=>`<div style="background:rgba(255,255,255,.05);border-radius:8px;padding:9px 11px">
@@ -2315,7 +2326,7 @@ function copyCardText(){
   if(sWin>=75) rules.push('IF they sit \u2192 Short ('+sWin+'% win rate)');
   if(hpWin<50) rules.push('IF they press \u2192 Short only (Long: '+lWin+'% under press)');
   if(mWin>=70) rules.push('IF space in midfield \u2192 Quick mid to Z4/Z5');
-  if(rules.length===0) rules.push('Short = safest call | Mid when space available');
+  if(rules.length===0) rules.push('Short = highest current win rate | Mid when space available');
 
   const focus=[];
   if(mklPct<75) focus.push('Win more own kickouts ('+mklPct+'%, target 75%+)');
@@ -2340,8 +2351,8 @@ function copyCardText(){
     now+' \u00b7 '+d.label,'',
     '\ud83d\udcca Match Snapshot',
     'Own KO: '+mklPct+'% ('+m.won+'/'+m.total+' won)',
-    'Opp KO Won: '+oppTO+'%  |  Target: 40%+',
-    '2-Phase Retention: '+m.twoPhasePct+'%  |  Target: 70%+','',
+    'MKL Won Opp KO: '+oppTO+'%  |  Target: 40%+',
+    '2-Phase Retention: '+m.twoPhasePct+'%  |  Target: 60%+','',
     '\ud83e\udde0 Kickout Rules',
     ...rules,
     '','\ud83c\udfaf Key Focus',
@@ -2393,6 +2404,8 @@ document.querySelectorAll('.section').forEach(s=>obs.observe(s));
 
 setInterval(()=>loadData(false),5*60*1000);
 loadData();
+
+
 
 
 
