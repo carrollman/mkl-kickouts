@@ -73,6 +73,9 @@ body{background:var(--bg);color:var(--text);font-family:"Segoe UI",system-ui,san
 
 /* KPI CARDS */
 .card-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  #overview-cards{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:700px){#overview-cards{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:420px){#overview-cards{grid-template-columns:1fr}}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px}
 .card-label{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:4px}
 .card-value{font-size:30px;font-weight:800;line-height:1}
@@ -886,7 +889,7 @@ tr:hover td{background:var(--surface2)}
 </div>
 
 <script>
-// MKL Gaels Dashboard — built 2026-03-30 10:48:22
+// MKL Gaels Dashboard — built 2026-03-30 10:56:49
 
 // MKL Gaels Dashboard — built 2026-03-30 10:33:55
 
@@ -1565,19 +1568,20 @@ function renderOverview(){
     if(inv) return v<=tgt?'var(--green)':v<=amber?'var(--amber)':'var(--red)';
     return v>=tgt?'var(--green)':v>=amber?'var(--amber)':'var(--red)';
   }
+  // Row 1: our attacking KPIs | Row 2: defensive / secondary KPIs
   const kpiCards=[
     {id:'own-ko',   l:'Own KO Win %',      v:mklPct,        tgt:75, amb:60, inv:false, unit:'%',
       s:`${m.won}/${m.total} kickouts won`,
       detail:`Short: ${pct(m.byLength.S?.w||0,m.byLength.S?.t||1)}% &nbsp;|&nbsp; Mid: ${pct(m.byLength.M?.w||0,m.byLength.M?.t||1)}% &nbsp;|&nbsp; Long: ${pct(m.byLength.L?.w||0,m.byLength.L?.t||1)}%<br>Under press: ${pct(m.pressure.heavy.w,m.pressure.heavy.t)}% &nbsp;|&nbsp; No press: ${pct(m.pressure.none.w,m.pressure.none.t)}%`},
-    {id:'opp-to',   l:'Opp Turnovers %',   v:oppTO,         tgt:40, amb:25, inv:false, unit:'%',
-      s:`Won ${o.lost}/${o.total} opp kickouts`,
-      detail:`Short: ${pct(o.pressByLength?.S?.mkl||0,o.pressByLength?.S?.t||1)}% &nbsp;|&nbsp; Mid: ${pct(o.pressByLength?.M?.mkl||0,o.pressByLength?.M?.t||1)}% &nbsp;|&nbsp; Long: ${pct(o.pressByLength?.L?.mkl||0,o.pressByLength?.L?.t||1)}%`},
     {id:'two-phase',l:'2-Phase Retention', v:m.twoPhasePct, tgt:60, amb:45, inv:false, unit:'%',
       s:`${m.retention.controlled} controlled of ${m.won} won`,
       detail:`Controlled (4+): ${m.retention.controlled} &nbsp;|&nbsp; Short (2–3): ${m.retention.short} &nbsp;|&nbsp; Imm. TO: ${m.retention.immediate}<br>1st half: ${m.half.first.ctrl}% &nbsp;|&nbsp; 2nd half: ${m.half.second.ctrl}%`},
     {id:'pos-att',  l:'Positive Attack %', v:m.exitSuccess, tgt:50, amb:35, inv:false, unit:'%',
       s:'Shot attempt or foul won from won KO',
       detail:`Scores: ${m.resulting?.Score||0} &nbsp;|&nbsp; Foul Won: ${m.resulting?.['Foul Won']||0} &nbsp;|&nbsp; Wides: ${m.resulting?.Wide||0}<br>Turnovers after winning: ${m.resulting?.Turnover||0}`},
+    {id:'opp-to',   l:'Opp Turnovers %',   v:oppTO,         tgt:40, amb:25, inv:false, unit:'%',
+      s:`Won ${o.lost}/${o.total} opp kickouts`,
+      detail:`Short: ${pct(o.pressByLength?.S?.mkl||0,o.pressByLength?.S?.t||1)}% &nbsp;|&nbsp; Mid: ${pct(o.pressByLength?.M?.mkl||0,o.pressByLength?.M?.t||1)}% &nbsp;|&nbsp; Long: ${pct(o.pressByLength?.L?.mkl||0,o.pressByLength?.L?.t||1)}%`},
     {id:'clean-p',  l:'Clean Possession',  v:cleanPct,      tgt:75, amb:60, inv:false, unit:'%',
       s:`${m.cleanPoss} clean of ${m.won} won`,
       detail:`Clean Catch: ${m.cleanPoss} &nbsp;|&nbsp; Contested/Breaking Ball: ${m.won-m.cleanPoss}`},
