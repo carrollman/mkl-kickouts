@@ -741,7 +741,7 @@ tr:hover td{background:var(--surface2)}
         <div class="glossary-card field-card" data-terms="heavy press pressure opponent contest marked">
           <div class="glossary-term">Heavy Press <span class="glossary-tag field">Field Term</span></div>
           <div class="glossary-def">The opposition is actively pressing the intended kickout receiver before the ball arrives. The receiver is marked and under pressure to win the contest or make a quick decision. Heavy press situations are the most difficult for the kickout taker &mdash; the risk of losing the ball is significantly higher.</div>
-          <div class="glossary-example"><strong>MKL data:</strong> Under heavy press we win just 25% of kickouts. Under no press: 100%. The call and the receiver choice become critical under heavy press.</div>
+          <div class="glossary-example"><strong>MKL data:</strong> Under heavy press we win 31% of kickouts. Under no press: 100%. The call and the receiver choice become critical under heavy press.</div>
         </div>
 
         <div class="glossary-card field-card" data-terms="press success opp opposition turnover force">
@@ -835,7 +835,7 @@ tr:hover td{background:var(--surface2)}
         <div class="glossary-card kpi-card" data-terms="benchmark target line goal aim compare">
           <div class="glossary-term">Benchmark Targets</div>
           <div class="glossary-def">The white vertical lines on the benchmark bars show the target threshold for each KPI. These are based on what elite LGFA kickout analysis suggests as the minimum standard for a team that wins more than it loses from restarts. Green means we are at or above target. Amber means close but not there. Red means below target and needs attention.</div>
-          <div class="glossary-example"><strong>Targets:</strong> Own KO Win % &#8594; 75%+ &nbsp;&bull;&nbsp; 2-Phase Retention &#8594; 55%+ &nbsp;&bull;&nbsp; Opp Turnover &#8594; 40%+ &nbsp;&bull;&nbsp; Positive Attack &#8594; 50%+</div>
+          <div class="glossary-example"><strong>Targets:</strong> Own KO Win % &#8594; 75%+ &nbsp;&bull;&nbsp; 2-Phase Retention &#8594; 60%+ &nbsp;&bull;&nbsp; Opp Turnover &#8594; 40%+ &nbsp;&bull;&nbsp; Positive Attack &#8594; 50%+</div>
         </div>
 
         <div class="glossary-card kpi-card" data-terms="half trend 1st 2nd fatigue second half breakdown performance">
@@ -1730,11 +1730,18 @@ function renderOverview(){
   }).join('');
 
   document.getElementById('benchmark-section').innerHTML=`<div class="chart-card"><div class="chart-title">KPI Benchmarks vs Targets</div><div class="chart-sub">White line = target threshold</div>${
-    [{l:'Own KO Win %',v:mklPct,t:75},{l:'2-Phase Retention',v:m.twoPhasePct,t:60},
-     {l:'Possession to Shot %',v:m.possToShotPct||0,t:55},{l:'Immediate TO %',v:immTO,t:10,inv:true},
-     {l:'Positive Attack %',v:m.exitSuccess,t:50},{l:'Opp Turnover %',v:oppTO,t:40}
-    ].map(b=>{const col=hexFor(b.v);
-      return `<div class="bench-row"><div class="bench-label">${b.l}</div><div class="bench-val" style="color:${col}">${b.v}%</div><div class="bench-bar-wrap"><div class="bench-bar" style="width:${b.v}%;background:${col}"></div><div class="bench-target" style="left:${b.t}%"></div></div><span class="bench-tag" style="color:${col}">${b.v>=b.t?'ON TARGET':'BELOW'}</span></div>`;
+    [
+      {l:'Own KO Win %',v:mklPct,t:75,a:60,inv:false},
+      {l:'2-Phase Retention',v:m.twoPhasePct,t:60,a:45,inv:false},
+      {l:'Possession to Shot %',v:m.possToShotPct||0,t:55,a:40,inv:false},
+      {l:'Immediate TO %',v:immTO,t:10,a:20,inv:true},
+      {l:'Positive Attack %',v:m.exitSuccess,t:50,a:35,inv:false},
+      {l:'Opp Turnover %',v:oppTO,t:40,a:25,inv:false}
+    ].map(b=>{
+      const col=kpiCol(b.v,b.t,b.a,b.inv);
+      const onTarget=b.inv ? b.v<=b.t : b.v>=b.t;
+      const status=onTarget?'ON TARGET':'BELOW';
+      return `<div class="bench-row"><div class="bench-label">${b.l}</div><div class="bench-val" style="color:${col}">${b.v}%</div><div class="bench-bar-wrap"><div class="bench-bar" style="width:${b.v}%;background:${col}"></div><div class="bench-target" style="left:${b.t}%"></div></div><span class="bench-tag" style="color:${col}">${status}</span></div>`;
     }).join('')}</div>`;
 
   // Each KPI has its own green/amber threshold — benchmarks from 2026 KPI Snapshot
@@ -1815,7 +1822,7 @@ function renderOwnCharts(){
   document.getElementById('own-insights').innerHTML=`
     <div class="insight-card ${sWin>=75?'good':'warn'}"><div class="insight-label">Short Kickouts &#8212; ${sWin}% Win Rate</div><div class="insight-metric" style="color:${colorFor(sWin)}">${sWin>=75?'Highest current win rate &#8212; best option under press':'Check short receiver positioning'}</div><div class="irow"><span class="ikey">What we do next:</span>When pressed, call short. Signal must be clear from GK.</div></div>
     <div class="insight-card ${lWin>=50?'warn':'bad'}"><div class="insight-label">Long Kickouts &#8212; ${lWin}% Win Rate (${m.byLength.L?.t||0} kicks)</div><div class="insight-metric" style="color:${colorFor(lWin)}">${lWin<30?'High risk &#8212; avoid unless overload confirmed':'Moderate risk &#8212; use selectively'}</div><div class="irow"><span class="ikey">What we do next:</span>Long only as a planned overload. Never as default under press.</div></div>
-    <div class="insight-card ${m.twoPhasePct>=55?'good':'bad'}"><div class="insight-label">2-Phase Retention &#8212; ${m.twoPhasePct}%</div><div class="insight-metric" style="color:${colorFor(m.twoPhasePct)}">${m.twoPhasePct>=55?'Good ball security after kickout win':'Winning the ball but losing it too quickly'}</div><div class="irow"><span class="ikey">What we do next:</span>Win it, carry forward, 4+ actions before going forward.</div></div>
+    <div class="insight-card ${m.twoPhasePct>=60?'good':'bad'}"><div class="insight-label">2-Phase Retention &#8212; ${m.twoPhasePct}%</div><div class="insight-metric" style="color:${kpiCol(m.twoPhasePct,60,45)}">${m.twoPhasePct>=60?'Good ball security after kickout win':'Winning the ball but losing it too quickly'}</div><div class="irow"><span class="ikey">What we do next:</span>Win it, carry forward, 4+ actions before going forward.</div></div>
     <div class="insight-card ${hpWin>=50?'warn':'bad'}"><div class="insight-label">Under Heavy Press &#8212; ${hpWin}% Win Rate (${m.pressure.heavy.t} kickouts)</div><div class="insight-metric" style="color:${colorFor(hpWin)}">Press disrupting ${100-hpWin}% of pressed kickouts</div><div class="irow"><span class="ikey">What we do next:</span>GK call-off signal to switch to free runner instantly.</div></div>`;
 }
 
@@ -2397,7 +2404,7 @@ function buildCardPreview(){
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         ${[{l:'Own KO',v:mklPct+'%',s:m.won+'/'+m.total+' won',col:hexFor(mklPct)},
            {l:'MKL Won Opp KO',v:oppTO+'%',s:'Target 40%+',col:hexFor(oppTO)},
-           {l:'2-Phase Retain',v:m.twoPhasePct+'%',s:'Target 70%+',col:hexFor(m.twoPhasePct)},
+           {l:'2-Phase Retain',v:m.twoPhasePct+'%',s:'Target 60%+',col:kpiCol(m.twoPhasePct,60,45)},
            {l:'Positive Attack',v:m.exitSuccess+'%',s:'Score/foul rate',col:hexFor(m.exitSuccess)},
         ].map(k=>`<div style="background:rgba(255,255,255,.05);border-radius:8px;padding:9px 11px">
           <div style="font-size:10px;color:rgba(255,255,255,.5);margin-bottom:2px">${k.l}</div>
