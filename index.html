@@ -889,7 +889,7 @@ tr:hover td{background:var(--surface2)}
 </div>
 
 <script>
-// MKL Gaels Dashboard — built 2026-03-30 10:56:49
+// MKL Gaels Dashboard — built 2026-04-01 09:09:12
 
 // MKL Gaels Dashboard — built 2026-03-30 10:33:55
 
@@ -1163,10 +1163,9 @@ function buildMatchData(rows){
     const cleanPoss=mklWon.filter(r=>['Clean Catch','No Contest'].includes(r['Possession Type'])).length;
     const twoPhasePct=pct(retention.controlled,mklWon.length);
     const SHOT_POS=['Score','Foul Won','Wide','Shot Saved','Drop Shot'];
-    const exitSuccess=pct(
-      mklWon.filter(r=>SHOT_POS.includes(r['Resulting Outcome'])||SHOT_POS.includes(r['Resulting Action'])).length,
-      mklWon.length
-    );
+    const exitSuccessRows=mklWon.filter(r=>SHOT_POS.includes(r['Resulting Outcome'])||SHOT_POS.includes(r['Resulting Action']));
+    const exitSuccess=pct(exitSuccessRows.length,mklWon.length);
+    const exitSuccessCount=exitSuccessRows.length;
     // SHOT_VALS = actual shot attempts only (no Foul Won — you drew a foul, didn't shoot)
     // SHOT_POS  = positive outcome (shot attempt OR foul won) — used for exitSuccess
     const SHOT_VALS=['Score','Wide','Shot Saved','Drop Shot'];
@@ -1320,7 +1319,7 @@ function buildMatchData(rows){
     return {
       mkl:{total:mkl.length,won:mklWon.length,lost:mkl.filter(r=>r['Outcome (Primary)']==='Lost').length,
            byLength,byZone,pressure,retention,firstAction,resulting,cleanPoss,twoPhasePct,exitSuccess,half,
-           tacticalCalls,totalCoded,totalUncoded,possToShotPct,possBreakdown,clips,
+           tacticalCalls,totalCoded,totalUncoded,possToShotPct,possBreakdown,clips,exitSuccessCount,
            computed:{h2HeavyLongPct:pct(h2HeavyLongWin.length,h2HeavyLong.length),h2HeavyLongN:h2HeavyLong.length,
                      noPressZ4Pct:pct(noPressZ4Win.length,noPressZ4.length),noPressZ4N:noPressZ4.length,
                      noPressZ2Pct:pct(noPressZ2Win.length,noPressZ2.length),
@@ -1501,14 +1500,19 @@ function renderPlayerView(){
   const d=getD(),m=d.mkl,o=d.opp;
   const mklPct=pct(m.won,m.total),oppTO=pct(o.lost,o.total);
   const sWin=pct(m.byLength.S?.w||0,m.byLength.S?.t||1);
-  // Per-KPI colour — each metric judged against its own target
-  function kpiCol(v,green,amber){return v>=green?'var(--green)':v>=amber?'var(--amber)':'var(--red)';}
+  // Shared per-KPI colour helper — used in player hero and overview cards
+  function kpiCol(v,green,amber,inv=false){
+    if(inv) return v<=green?'var(--green)':v<=amber?'var(--amber)':'var(--red)';
+    return v>=green?'var(--green)':v>=amber?'var(--amber)':'var(--red)';
+  }
+  const p2sVal=m.possToShotPct||0;
   const heroCards=[
-    {n:mklPct,    l:'Our KO Win %',   tgt:75, col:kpiCol(mklPct,75,60)},
-    {n:oppTO,     l:'Opp Turnovers',  tgt:40, col:kpiCol(oppTO,40,25)},
-    {n:m.twoPhasePct, l:'2-Phase Retain', tgt:60, col:kpiCol(m.twoPhasePct,60,45)},
-    {n:m.exitSuccess, l:'Positive Attack',tgt:50, col:kpiCol(m.exitSuccess,50,35)},
-    {n:sWin,      l:'Short Win %',    tgt:75, col:kpiCol(sWin,75,60)},
+    {n:mklPct,        l:'Own KO Win %',    tgt:75, col:kpiCol(mklPct,75,60)},
+    {n:oppTO,         l:'Opp Turnovers',   tgt:40, col:kpiCol(oppTO,40,25)},
+    {n:m.twoPhasePct, l:'2-Phase Retain',  tgt:60, col:kpiCol(m.twoPhasePct,60,45)},
+    {n:m.exitSuccess, l:'Positive Attack', tgt:50, col:kpiCol(m.exitSuccess,50,35)},
+    {n:sWin,          l:'Short Win %',     tgt:75, col:kpiCol(sWin,75,60)},
+    {n:p2sVal,        l:'Poss to Shot %',  tgt:55, col:kpiCol(p2sVal,55,40)},
   ];
   document.getElementById('player-hero-grid').innerHTML=heroCards.map(h=>{
     const onTarget=h.n>=h.tgt;
@@ -1563,11 +1567,6 @@ function renderOverview(){
   const mklPct=pct(m.won,m.total),oppTO=pct(o.lost,o.total);
   const immTO=pct(m.retention.immediate,m.won),cleanPct=pct(m.cleanPoss,m.won);
   const scoresConcPct=pct(o.resulting?.Score||0,o.won);
-  // Per-KPI colour helper for overview cards
-  function kpiColOv(v,tgt,amber,inv=false){
-    if(inv) return v<=tgt?'var(--green)':v<=amber?'var(--amber)':'var(--red)';
-    return v>=tgt?'var(--green)':v>=amber?'var(--amber)':'var(--red)';
-  }
   // Row 1: our attacking KPIs | Row 2: defensive / secondary KPIs
   const kpiCards=[
     {id:'own-ko',   l:'Own KO Win %',      v:mklPct,        tgt:75, amb:60, inv:false, unit:'%',
@@ -1590,7 +1589,7 @@ function renderOverview(){
       detail:`Scores against: ${o.resulting?.Score||0} from ${o.won} retained &nbsp;|&nbsp; Turnovers after they win: ${o.resulting?.Turnover||0}`},
   ];
   document.getElementById('overview-cards').innerHTML=kpiCards.map(c=>{
-    const col=kpiColOv(c.v,c.tgt,c.amb,c.inv);
+    const col=kpiCol(c.v,c.tgt,c.amb,c.inv);
     const onTarget=c.inv?(c.v<=c.tgt):(c.v>=c.tgt);
     const gap=onTarget
       ? '<span style="color:var(--green);font-weight:600">&#9989; On target</span>'
@@ -1648,10 +1647,15 @@ function renderOverview(){
 
 function renderOwnCharts(){
   const d=getD(),m=d.mkl;
-  const pos=(m.resulting?.Score||0)+(m.resulting?.['Foul Won']||0);
+  const pos=m.exitSuccessCount!==undefined?m.exitSuccessCount:Math.round(m.exitSuccess/100*m.won);
+  const funnelStages=[
+    {l:'Taken',  v:m.total,               prev:m.total,  c:'var(--accent)'},
+    {l:'Won',    v:m.won,                 prev:m.total,  c:'var(--green)'},
+    {l:'2-Phase',v:m.retention.controlled,prev:m.won,    c:'var(--amber)'},
+    {l:'Positive',v:pos,                  prev:m.won,    c:'#bc8cff'},
+  ];
   document.getElementById('possession-funnel').innerHTML=`<div class="funnel-row">${
-    [{l:'Taken',v:m.total,c:'var(--accent)'},{l:'Won',v:m.won,c:'var(--green)'},{l:'2-Phase',v:m.retention.controlled,c:'var(--amber)'},{l:'Positive',v:pos,c:'#bc8cff'}
-    ].map((s,i)=>`${i>0?'<div class="funnel-arrow">&#8594;</div>':''}<div class="funnel-stage"><div class="funnel-stage-label">${s.l}</div><div class="funnel-stage-val" style="color:${s.c}">${s.v}</div>${i>0?`<div style="font-size:9px;color:var(--muted)">${pct(s.v,m.total)}%</div>`:''}</div>`).join('')}</div>`;
+    funnelStages.map((s,i)=>`${i>0?'<div class="funnel-arrow">&#8594;</div>':''}<div class="funnel-stage"><div class="funnel-stage-label">${s.l}</div><div class="funnel-stage-val" style="color:${s.c}">${s.v}</div>${i>0?`<div style="font-size:9px;color:var(--muted)">${pct(s.v,s.prev)}%</div>`:''}</div>`).join('')}</div>`;
 
   const lv=[pct(m.byLength.S?.w||0,m.byLength.S?.t||1),pct(m.byLength.M?.w||0,m.byLength.M?.t||1),pct(m.byLength.L?.w||0,m.byLength.L?.t||1)];
   makeChart('chart-length','bar',['Short','Mid','Long'],[{label:'Win %',data:lv,backgroundColor:lv.map(v=>hexFor(v)+'99'),borderColor:lv.map(hexFor),borderWidth:2,borderRadius:6}],{yPct:true,legend:false});
@@ -1719,7 +1723,7 @@ function renderTrend(){
   function dotCol(v,g,w,inv=false){if(inv)return v<=g?'var(--green)':v<=w?'var(--amber)':'var(--red)';return v>=g?'var(--green)':v>=w?'var(--amber)':'var(--red)';}
   function halfCard(half,ret,isFirst){
     const cls=ret>=60?'good-half':'bad-half';
-    const rows=[{l:'Retention:',v:ret+'%',dot:dotCol(ret,75,50)},{l:'Controlled %:',v:half.ctrl+'%',dot:dotCol(half.ctrl,60,45)},{l:'Poss-to-Shot:',v:half.p2s+'%',dot:dotCol(half.p2s,55,35)},{l:'Immediate TO:',v:half.immTO+'%',dot:dotCol(half.immTO,15,25,true)}];
+    const rows=[{l:'Retention:',v:ret+'%',dot:dotCol(ret,75,60)},{l:'Controlled %:',v:half.ctrl+'%',dot:dotCol(half.ctrl,60,45)},{l:'Poss-to-Shot:',v:half.p2s+'%',dot:dotCol(half.p2s,55,35)},{l:'Immediate TO:',v:half.immTO+'%',dot:dotCol(half.immTO,10,20,true)}];
     const assess=ret>=65?(isFirst?'Control Established':'Good 2nd Half'):(isFirst?'Difficult 1st Half':'Control Lost');
     return `<div class="trend-half ${cls}"><h3>${isFirst?'1st Half':'2<sup style="font-size:10px">nd</sup> Half'}</h3>${rows.map(r=>`<div class="trend-row-item"><span style="color:#ccc;font-size:12px">${r.l}</span><div class="trend-val-wrap"><span class="trend-pct">${r.v}</span><span class="trend-dot" style="background:${r.dot}"></span></div></div>`).join('')}<div class="trend-assess"><div class="trend-assess-title">ASSESSMENT: ${assess}</div><div class="trend-bullet">${ret>=65?'Retention above target &#8212; good ball security':'Retention below target &#8212; kickout control dropped'}</div><div class="trend-bullet">${half.ctrl>=60?'Controlled possession maintained':'Ball being lost too quickly after winning'}</div></div></div>`;
   }
