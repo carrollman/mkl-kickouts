@@ -889,7 +889,7 @@ tr:hover td{background:var(--surface2)}
 </div>
 
 <script>
-// MKL Gaels Dashboard — built 2026-04-01 09:09:12
+// MKL Gaels Dashboard — built 2026-04-01 09:15:18
 
 // MKL Gaels Dashboard — built 2026-03-30 10:33:55
 
@@ -1496,15 +1496,17 @@ function renderAll(){
   if(currentView==='coaches') setCoachGroup('matchday');
 }
 
+// ── Shared KPI colour helper ────────────────────────────────
+function kpiCol(v,green,amber,inv=false){
+  if(inv) return v<=green?'var(--green)':v<=amber?'var(--amber)':'var(--red)';
+  return v>=green?'var(--green)':v>=amber?'var(--amber)':'var(--red)';
+}
+
 function renderPlayerView(){
   const d=getD(),m=d.mkl,o=d.opp;
   const mklPct=pct(m.won,m.total),oppTO=pct(o.lost,o.total);
   const sWin=pct(m.byLength.S?.w||0,m.byLength.S?.t||1);
-  // Shared per-KPI colour helper — used in player hero and overview cards
-  function kpiCol(v,green,amber,inv=false){
-    if(inv) return v<=green?'var(--green)':v<=amber?'var(--amber)':'var(--red)';
-    return v>=green?'var(--green)':v>=amber?'var(--amber)':'var(--red)';
-  }
+
   const p2sVal=m.possToShotPct||0;
   const heroCards=[
     {n:mklPct,        l:'Own KO Win %',    tgt:75, col:kpiCol(mklPct,75,60)},
