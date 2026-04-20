@@ -2077,29 +2077,45 @@ function sparklineDelta(vals){
 }
 
 function renderKpiSparklines(){
+  // inv:true = lower is better (Immediate TO, Scores Conceded)
+  // trendCol computed dynamically: up+normal=green, up+inv=red, down+normal=red, down+inv=green
   const sparkDefs=[
-    {id:'own-ko',   kpi:'own',     col:'var(--green)'},
-    {id:'two-phase',kpi:'twophase',col:'var(--accent)'},
-    {id:'pos-att',  kpi:'posatt',  col:'var(--amber)'},
-    {id:'opp-to',   kpi:'oppTO',   col:'var(--red)'},
-    {id:'clean-p',  kpi:'cleanp',  col:'var(--green)'},
-    {id:'sc-rate',  kpi:'imm',     col:'var(--red)'},
+    {id:'own-ko',   kpi:'own',     inv:false},
+    {id:'two-phase',kpi:'twophase',inv:false},
+    {id:'pos-att',  kpi:'posatt',  inv:false},
+    {id:'opp-to',   kpi:'oppTO',   inv:false},
+    {id:'clean-p',  kpi:'cleanp',  inv:false},
+    {id:'sc-rate',  kpi:'imm',     inv:true},   // lower imm-TO = better
   ];
   sparkDefs.forEach(sd=>{
-    const card=document.querySelector(`[onclick*="${sd.id}"]`)||document.getElementById('kpi-detail-'+sd.id)?.parentElement;
     const existingWrap=document.getElementById('spark-'+sd.id);
     if(existingWrap) existingWrap.remove();
     const vals=getSparklineData(sd.kpi);
     if(!vals||vals.length<2) return;
-    const del=sparklineDelta(vals);
+
+    const first=vals[0], last=vals[vals.length-1];
+    const diff=last-first;
+    const isUp=diff>0, isFlat=Math.abs(diff)<1;
+
+    // Colour: green if trending in the good direction, red if bad, muted if flat
+    const isGoodDir = isFlat ? null : (sd.inv ? !isUp : isUp);
+    const trendCol = isFlat
+      ? 'var(--muted)'
+      : isGoodDir ? 'var(--green)' : 'var(--red)';
+
+    // Delta text: arrow direction always matches raw movement; colour reflects quality
+    const arrow = isFlat ? '—' : (isUp ? '↑' : '↓');
+    const deltaText = isFlat ? '' : Math.abs(diff).toFixed(0)+'%';
+    const deltaCol = trendCol;
+
     const sparkWrap=document.createElement('div');
     sparkWrap.id='spark-'+sd.id;
     sparkWrap.className='sparkline-wrap';
     sparkWrap.innerHTML=
-      buildSparkline(vals,sd.col)+
+      buildSparkline(vals, trendCol)+
       `<span class="sparkline-label">${matchIds.length} matches</span>`+
-      `<span class="sparkline-delta ${del.cls}">${del.arrow} ${del.diff>0?del.diff+'%':''}</span>`;
-    // Find the card sub element and append after it
+      `<span style="font-size:10px;font-weight:700;color:${deltaCol}">${arrow}${deltaText}</span>`;
+
     const progWrap=document.getElementById('kpi-detail-'+sd.id);
     if(progWrap) progWrap.parentElement.appendChild(sparkWrap);
   });
