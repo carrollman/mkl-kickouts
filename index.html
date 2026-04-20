@@ -42,6 +42,9 @@ h1,h2,h3,.sec-title,.card-value,.hero-num,.action-num,.huddle-num{font-family:'B
   font-size:12px;font-weight:600;white-space:nowrap;border-bottom:3px solid transparent;transition:all .2s;margin-bottom:-1px;letter-spacing:.3px;font-family:'Inter',sans-serif}
 .tab-btn.active{color:var(--gold);border-bottom-color:var(--gold)}
 .tab-btn:hover:not(.active){color:var(--text)}
+.tab-btn:not([onclick*="all"]):hover::after{content:"double-click to rename";position:absolute;
+  bottom:-22px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:var(--muted);
+  font-size:10px;padding:2px 7px;border-radius:4px;white-space:nowrap;pointer-events:none;z-index:200}
 .view-row{display:flex;gap:8px;justify-content:space-between;align-items:center;padding:10px 0 8px;flex-wrap:wrap}
 .view-toggle{display:flex;border:1px solid rgba(245,200,66,.3);border-radius:8px;overflow:hidden}
 .view-btn{padding:6px 16px;background:var(--surface);color:var(--muted);border:none;cursor:pointer;font-size:12px;transition:all .2s}
@@ -1095,29 +1098,62 @@ function initYTPlayer(videoId){
 }
 
 function playClip(videoId, secs){
-  // Switch to clips view if not already there
+  // Switch to video view and scroll player into view
   if(currentView!=='clips') setView('clips');
-  // Scroll player into view
-  const container=document.getElementById('yt-player-container');
-  if(container) container.scrollIntoView({behavior:'smooth',block:'start'});
+  const pw=document.getElementById('yt-player-wrap');
+  if(pw) setTimeout(()=>pw.scrollIntoView({behavior:'smooth',block:'nearest'}), 100);
 
-  if(!ytReady||!ytPlayer){
-    // API not ready yet — queue it
-    ytPendingVid=videoId; ytPendingSecs=secs;
+  // If player not ready at all, queue and bail
+  if(!ytReady){ ytPendingVid=videoId; ytPendingSecs=secs; return; }
+
+  const currentLoadedId=pw?.dataset?.loadedVid||'';
+
+  // Case 1: different video — rebuild container for new video
+  if(currentLoadedId && currentLoadedId!==videoId){
+    if(pw){
+      pw.dataset.loadedVid=videoId;
+      pw.innerHTML=`
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+          <div style="background:#071009;padding:10px 14px;display:flex;align-items:center;
+            justify-content:space-between;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px;font-weight:700;font-family:'Barlow Condensed',sans-serif;letter-spacing:.4px;color:var(--text)">&#127910; Match Video</span>
+            <span style="font-size:11px;color:var(--muted)">Jump to a clip using the buttons below</span>
+          </div>
+          <div id="yt-player-container" style="position:relative;padding-bottom:56.25%;height:0;background:#000">
+            <div id="yt-player" style="position:absolute;top:0;left:0;width:100%;height:100%"></div>
+          </div>
+        </div>`;
+    }
+    ytPlayer=null;
+    ytPendingSecs=secs;
+    setTimeout(()=>initYTPlayer(videoId), 80);
     return;
   }
-  // If same video just seek, otherwise load new video
+
+  // Case 2: no container yet — init fresh
+  if(!document.getElementById('yt-player-container')){
+    if(pw){ pw.dataset.loadedVid=videoId; }
+    ytPlayer=null; ytPendingSecs=secs;
+    setTimeout(()=>initYTPlayer(videoId), 80);
+    return;
+  }
+
+  // Case 3: player not initialised yet
+  if(!ytPlayer){ ytPendingVid=videoId; ytPendingSecs=secs; initYTPlayer(videoId); return; }
+
+  // Case 4: player ready — same video, just seek
   try{
-    const current=ytPlayer.getVideoData&&ytPlayer.getVideoData();
-    if(current&&current.video_id===videoId){
+    const data=ytPlayer.getVideoData&&ytPlayer.getVideoData();
+    if(data&&data.video_id===videoId){
       ytPlayer.seekTo(secs,true);
       ytPlayer.playVideo();
     } else {
-      ytPlayer.loadVideoById({videoId:videoId,startSeconds:secs});
+      ytPlayer.loadVideoById({videoId,startSeconds:secs});
     }
   }catch(e){
-    // Player not fully initialised yet
-    ytPendingVid=videoId; ytPendingSecs=secs;
+    console.warn('playClip fallback:', e.message);
+    ytPlayer=null; ytPendingSecs=secs;
+    initYTPlayer(videoId);
   }
 }
 
@@ -1133,18 +1169,21 @@ const hexFor=v=>v>=75?'#3fb950':v>=50?'#d29922':'#f85149';
 const colorFor=v=>v>=75?'var(--green)':v>=50?'var(--amber)':'var(--red)';
 const sampleSize=n=>n>=5?['HIGH','sample-high']:n>=3?['MED','sample-med']:['LOW','sample-low'];
 
-Chart.defaults.color='#8b949e'; Chart.defaults.borderColor='#30363d';
-Chart.defaults.font.family="'Segoe UI',system-ui,sans-serif"; Chart.defaults.font.size=11;
+// Chart.js theme — aligned to MKL green-dark palette
+Chart.defaults.color='#7a9a82';          // --muted green-tinted
+Chart.defaults.borderColor='#243029';    // --border
+Chart.defaults.font.family="'Inter',system-ui,sans-serif";
+Chart.defaults.font.size=11;
 
 function makeChart(id,type,labels,datasets,opts={}){
   const c=document.getElementById(id); if(!c)return;
   if(charts[id])charts[id].destroy();
   charts[id]=new Chart(c,{type,data:{labels,datasets},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:opts.legend!==false,labels:{color:'#8b949e',boxWidth:10,padding:8,font:{size:10}}}},
+      plugins:{legend:{display:opts.legend!==false,labels:{color:'#7a9a82',boxWidth:10,padding:8,font:{size:10,family:"'Inter',system-ui,sans-serif"}}}},
       scales:type!=='pie'&&type!=='doughnut'?{
-        x:{grid:{color:'#21262d'},ticks:{color:'#8b949e',font:{size:10}}},
-        y:{grid:{color:'#21262d'},ticks:{color:'#8b949e',font:{size:10}},beginAtZero:true,...(opts.yPct?{max:100}:{})}
+        x:{grid:{color:'#182119'},ticks:{color:'#7a9a82',font:{size:10,family:"'Inter',system-ui,sans-serif"}}},
+        y:{grid:{color:'#182119'},ticks:{color:'#7a9a82',font:{size:10,family:"'Inter',system-ui,sans-serif"}},beginAtZero:true,...(opts.yPct?{max:100}:{})}
       }:undefined,...(opts.extra||{})}});
 }
 
@@ -1514,7 +1553,17 @@ function buildMatchData(rows){
 
   ids.forEach(id=>{
     const md=buildForRows(rows.filter(r=>r['Match ID'].trim()===id));
-    md.label=id.replace(/^\d{4}-[A-Z]+-MKL-v-/,'vs ');
+    // Expand opponent abbreviations to full readable names
+    const OPPONENT_NAMES={
+      'CM':   'Caherciveen',
+      'DrC':  'Dr Crokes',
+      'Scrt': 'Scartaglin',
+      'DrCr': 'Dr Crokes',
+      'Cah':  'Caherciveen',
+    };
+    const abbr=id.replace(/^\d{4}-[A-Z]+-MKL-v-/,'');
+    const fullName=OPPONENT_NAMES[abbr]||abbr;
+    md.label='vs '+fullName;
     md.ytUrl=ytUrls[id]||'';
     allMatches[id]=md;
   });
@@ -1557,13 +1606,16 @@ async function loadData(manual=false){
     MATCHES=result.data;
     matchIds=result.ids;
 
-    const isLive=!!(window._lastFetchSource&&window._lastFetchSource!=='embedded');
-const syncTime=new Date().toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+  const syncTime=new Date().toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
     const mklRows=RAW.filter(r=>r['Team']==='MKL').length;
     const oppRows=RAW.filter(r=>r['Team']==='Opp').length;
     document.getElementById('last-updated').textContent=
       `${syncTime} &#183; ${RAW.length} rows (${mklRows} MKL, ${oppRows} Opp) &#183; ${matchIds.length} match${matchIds.length!==1?'es':''}`;
 
+    // Apply any persisted custom labels before building tabs
+    matchIds.forEach(id=>{
+      if(CUSTOM_LABELS[id] && MATCHES[id]) MATCHES[id].label=CUSTOM_LABELS[id];
+    });
     buildMatchTabs();
     updateLiveBadge(window._usingEmbedded||false);
     renderAll();
@@ -1612,10 +1664,74 @@ function updateLiveBadge(isEmbedded){
   }
 }
 
+// ── Custom label persistence ──────────────────────────────────
+let CUSTOM_LABELS={};
+try{ CUSTOM_LABELS=JSON.parse(localStorage.getItem('mkl_match_labels')||'{}'); }catch(e){}
+
+function saveCustomLabels(){
+  try{ localStorage.setItem('mkl_match_labels',JSON.stringify(CUSTOM_LABELS)); }catch(e){}
+}
+
+function getMatchLabel(id){
+  return CUSTOM_LABELS[id] || MATCHES[id]?.label || id;
+}
+
+function startLabelEdit(id, btnEl){
+  // Don't trigger during normal click
+  const existing=document.getElementById('label-edit-'+id);
+  if(existing) return;
+
+  const currentLabel=getMatchLabel(id);
+  const input=document.createElement('input');
+  input.id='label-edit-'+id;
+  input.value=currentLabel;
+  input.style.cssText=`position:absolute;top:0;left:0;width:100%;height:100%;
+    background:var(--surface2);color:var(--gold);border:1px solid var(--gold);
+    border-radius:6px;padding:0 8px;font-size:12px;font-weight:600;
+    font-family:'Inter',sans-serif;outline:none;box-sizing:border-box;z-index:10;text-align:center`;
+
+  btnEl.style.position='relative';
+  btnEl.appendChild(input);
+  input.focus();
+  input.select();
+
+  function commit(){
+    const val=input.value.trim();
+    if(val && val!==currentLabel){
+      CUSTOM_LABELS[id]=val;
+      saveCustomLabels();
+      if(MATCHES[id]) MATCHES[id].label=val;
+    }
+    input.remove();
+    buildMatchTabs();
+    // Re-apply active state
+    document.querySelectorAll('.tab-btn').forEach(b=>{
+      const isAll=currentMatch==='all'&&b.textContent.includes('All');
+      const isMatch=b.getAttribute('onclick')===`setMatch('${currentMatch}')`;
+      b.classList.toggle('active',isAll||isMatch);
+    });
+  }
+
+  function cancel(){ input.remove(); }
+
+  input.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){ e.preventDefault(); commit(); }
+    if(e.key==='Escape'){ e.preventDefault(); cancel(); }
+  });
+  input.addEventListener('blur', commit);
+  input.addEventListener('click',e=>e.stopPropagation());
+}
+
 function buildMatchTabs(){
   const tabs=document.getElementById('match-tabs');
   tabs.innerHTML='<button class="tab-btn active" onclick="setMatch(\'all\')">&#128202; All Matches</button>'+
-    matchIds.map(id=>`<button class="tab-btn" onclick="setMatch('${id}')">${MATCHES[id]?.label||id}</button>`).join('');
+    matchIds.map(id=>{
+      const label=getMatchLabel(id);
+      return `<button class="tab-btn" onclick="setMatch('${id}')" 
+        title="Double-click to rename" 
+        ondblclick="event.stopPropagation();startLabelEdit('${id}',this)"
+        style="position:relative">${label}</button>`;
+    }).join('');
 }
 
 function getD(){return MATCHES[currentMatch]||MATCHES['all'];}
@@ -1695,65 +1811,217 @@ window.addEventListener('scroll',updateCoachSubnav,{passive:true});
 
 
 // ══ CREST DATA URL ══
-const CREST_SRC = document.querySelector('.crest-img')?.src || '';
+// Lazy crest getter — reads src at call time, not parse time
+function getCrestSrc(){
+  const img=document.querySelector('.crest-img');
+  return (img&&img.src&&img.src.length>10)?img.src:'';
+}
+
+// ══ MATCHDAY TREND TAG HELPER ══
+// Returns a compact inline trend indicator: sparkline SVG + Δ arrow
+// showing how a KPI has moved across all recorded matches.
+function buildTrendTag(kpi){
+  if(!matchIds||matchIds.length<2) return '';
+  const vals=getSparklineData(kpi);
+  if(!vals||vals.length<2) return '';
+  const first=vals[0], last=vals[vals.length-1];
+  const diff=last-first;
+  if(Math.abs(diff)<1) return '<span style="font-size:10px;color:var(--muted);margin-left:6px">&#8212;</span>';
+  const up=diff>0;
+  const col=up?'var(--green)':'var(--red)';
+  const arrow=up?'&#8593;':'&#8595;';
+  return `<span style="font-size:10px;color:${col};margin-left:6px;font-weight:700">${arrow}${Math.abs(diff).toFixed(0)}%</span>`;
+}
 
 // ══ MATCHDAY CARD RENDERER ══
+// Builds 3 data-driven principles ranked by the highest-leverage insight
+// from actual match data rather than fixed templates.
 function renderMatchdayCard(){
   const d=getD(),m=d.mkl,o=d.opp;
   const mklPct=pct(m.won,m.total);
   const sWin=pct(m.byLength.S?.w||0,m.byLength.S?.t||1);
+  const mWin=pct(m.byLength.M?.w||0,m.byLength.M?.t||1);
+  const lWin=pct(m.byLength.L?.w||0,m.byLength.L?.t||1);
   const hpWin=pct(m.pressure.heavy.w,m.pressure.heavy.t);
+  const lpWin=pct(m.pressure.light.w,m.pressure.light.t);
   const oppTO=pct(o.lost,o.total);
+  const immTO=pct(m.retention.immediate,m.won);
   const bpz=o.bestPressZones||[];
   const ozt=o.oppZoneTO||{};
+  const tc=m.tacticalCalls||{};
 
-  // Set crest in matchday card
+  // Set crest and subtitle
   const mcCrest=document.getElementById('mc-crest');
-  if(mcCrest) mcCrest.src=CREST_SRC;
-
-  // Set subtitle
+  if(mcCrest) mcCrest.src=getCrestSrc();
   const mcSub=document.getElementById('mc-subtitle');
   if(mcSub) mcSub.textContent=d.label+' \u00b7 MKL Gaels LGFA';
 
-  // Build 3 principles with BIG stat + headline + subtext
-  const tc=m.tacticalCalls||{};
-  const bestCall=Object.keys(tc).sort((a,b)=>tc[b].winPct-tc[a].winPct)[0];
-  const pressZoneStr = bpz.length>=2
+  // ── Candidate pool: compute every possible insight with a priority score ──
+  // score = how actionable × how significant the gap from target
+  const candidates=[];
+
+  // Best tactical call by win rate (min 3 kicks coded)
+  const sortedCalls=Object.keys(tc)
+    .filter(c=>tc[c].n>=3)
+    .sort((a,b)=>tc[b].winPct-tc[a].winPct);
+  const bestCall=sortedCalls[0];
+  const worstCall=sortedCalls[sortedCalls.length-1];
+
+  if(bestCall && tc[bestCall].winPct>=80){
+    candidates.push({
+      priority: tc[bestCall].winPct,  // higher win rate = higher priority
+      head: `${bestCall} — Go-To Call`,
+      body: `<strong style="color:var(--green)">${bestCall}</strong> wins at ${tc[bestCall].winPct}% (${tc[bestCall].won}/${tc[bestCall].n} kicks). When in doubt, default to this call.`,
+      stat: tc[bestCall].winPct+'%',
+      col:'var(--green)'
+    });
+  }
+
+  if(worstCall && worstCall!==bestCall && tc[worstCall].winPct<=40 && tc[worstCall].n>=3){
+    candidates.push({
+      priority: 100-tc[worstCall].winPct,
+      head: `Avoid ${worstCall}`,
+      body: `<strong style="color:var(--red)">${worstCall}</strong> wins only ${tc[worstCall].winPct}% (${tc[worstCall].won}/${tc[worstCall].n} kicks). Only use with a confirmed overload.`,
+      stat: tc[worstCall].winPct+'%',
+      col:'var(--red)'
+    });
+  }
+
+  // Short kickout if strong
+  if(m.byLength.S?.t>=3){
+    candidates.push({
+      priority: sWin>=90 ? 95 : sWin>=75 ? 80 : 60,
+      head: sWin>=90 ? 'Short — Undefeated' : sWin>=75 ? 'Short is King' : 'Short — Safest Option',
+      body: `Short kickouts win at <strong style="color:${sWin>=75?'var(--green)':'var(--amber)'}">${sWin}%</strong> (${m.byLength.S.w}/${m.byLength.S.t}). Under any press: call short, GK signal immediately.`,
+      stat: sWin+'%',
+      col: sWin>=75?'var(--green)':sWin>=60?'var(--amber)':'var(--red)'
+    });
+  }
+
+  // Heavy press — always high priority if data exists
+  if(m.pressure.heavy.t>=3){
+    candidates.push({
+      priority: hpWin<=40 ? 90 : hpWin<=60 ? 70 : 40,
+      head: hpWin<=40 ? '⚡ Under Press — Take the Short' : 'Hold Shape Under Press',
+      body: hpWin<=40
+        ? `Heavy press wins only <strong style="color:var(--red)">${hpWin}%</strong> (${m.pressure.heavy.w}/${m.pressure.heavy.t}). When pressed: short kickout immediately, no hesitation.`
+        : `Under heavy press: ${hpWin}% win rate. Short is safer (${sWin}%). Call the right option early.`,
+      stat: hpWin+'%',
+      col: hpWin>=60?'var(--green)':hpWin>=40?'var(--amber)':'var(--red)'
+    });
+  }
+
+  // Long kickout if it's a problem
+  if(m.byLength.L?.t>=3 && lWin<=40){
+    candidates.push({
+      priority: 85,
+      head: 'Long Kickouts — High Risk',
+      body: `Long kickouts win only <strong style="color:var(--red)">${lWin}%</strong> (${m.byLength.L.w}/${m.byLength.L.t}). Only play long with a confirmed overload and a clear aerial target.`,
+      stat: lWin+'%',
+      col:'var(--red)'
+    });
+  }
+
+  // 2-phase retention
+  if(m.won>=5){
+    const retPri=m.twoPhasePct<45 ? 85 : m.twoPhasePct<60 ? 65 : 30;
+    candidates.push({
+      priority: retPri,
+      head: m.twoPhasePct>=60 ? 'Good Ball Security' : m.twoPhasePct>=45 ? 'Hold It Longer' : 'Win It — Then Protect It',
+      body: m.twoPhasePct>=60
+        ? `2-phase retention at <strong style="color:var(--green)">${m.twoPhasePct}%</strong> — above target. Keep holding for 4+ actions before going forward.`
+        : `2-phase retention at <strong style="color:${m.twoPhasePct>=45?'var(--amber)':'var(--red)'}">${m.twoPhasePct}%</strong> (target 60%+). Win the ball, then hold for <strong>4+ actions</strong> before committing forward.`,
+      stat: m.twoPhasePct+'%',
+      col: m.twoPhasePct>=60?'var(--green)':m.twoPhasePct>=45?'var(--amber)':'var(--red)'
+    });
+  }
+
+  // Immediate turnover rate — if above target
+  if(m.won>=5 && immTO>10){
+    candidates.push({
+      priority: immTO>=20 ? 80 : 50,
+      head: 'First Touch — Stay Calm',
+      body: `Immediate turnover rate: <strong style="color:var(--red)">${immTO}%</strong> of won kickouts lost in 0–1 actions (target: below 10%). First receiver must secure possession before looking up.`,
+      stat: immTO+'%',
+      col:'var(--red)'
+    });
+  }
+
+  // Opposition press zones
+  const pressZoneStr=bpz.length>=2
     ? bpz[0]+(ozt[bpz[0]]?.pct?` (${ozt[bpz[0]].pct}%)`:'')
       +' & '+bpz[1]+(ozt[bpz[1]]?.pct?` (${ozt[bpz[1]].pct}%)`:'')
     : bpz.length===1 ? bpz[0]+(ozt[bpz[0]]?.pct?` (${ozt[bpz[0]].pct}%)`:'') : 'Z6 & Z9';
+  candidates.push({
+    priority: oppTO>=40 ? 55 : 70,
+    head: oppTO>=40 ? `Press ${pressZoneStr} — It's Working` : `Press Harder — ${pressZoneStr}`,
+    body: oppTO>=40
+      ? `MKL winning <strong style="color:var(--green)">${oppTO}%</strong> of opposition kickouts. Keep flooding <strong>${pressZoneStr}</strong>.`
+      : `MKL winning only <strong style="color:var(--amber)">${oppTO}%</strong> of opp kickouts (target 40%). Flood <strong>${pressZoneStr}</strong> — highest turnover zones.`,
+    stat: oppTO+'%',
+    col: oppTO>=40?'var(--green)':oppTO>=25?'var(--amber)':'var(--red)'
+  });
 
-  const principles=[
-    {
-      head: sWin>=75 ? 'Short is King' : 'Short — Best Option',
-      body: `Short kickouts win at <strong style="color:var(--green)">${sWin}%</strong>. Under press, call short immediately. GK: clear signal to nearest free player.`,
-      stat: sWin+'%',
-      col: sWin>=75?'var(--green)':sWin>=60?'var(--amber)':'var(--red)'
-    },
-    {
-      head: 'Win It — Hold It',
-      body: `Secure possession for <strong style="color:var(--gold)">4+ actions</strong> before going forward. 2-phase retention is currently <strong>${m.twoPhasePct}%</strong> (target 60%+).`,
-      stat: m.twoPhasePct+'%',
-      col: m.twoPhasePct>=60?'var(--green)':m.twoPhasePct>=45?'var(--amber)':'var(--red)'
-    },
-    {
-      head: 'Press ' + pressZoneStr,
-      body: `When they kick off, flood <strong style="color:var(--accent)">${pressZoneStr}</strong>. Best turnover zones from match data. Opp turnover rate: <strong>${oppTO}%</strong>.`,
-      stat: oppTO+'%',
-      col: oppTO>=40?'var(--green)':oppTO>=25?'var(--amber)':'var(--red)'
+  // ── Pick top 3 by priority, de-duplicate related topics ──
+  candidates.sort((a,b)=>b.priority-a.priority);
+
+  // Ensure no two principles are both about length (short + long + heavy press)
+  const chosen=[];
+  const usedTopics=new Set();
+  for(const c of candidates){
+    const topic=c.head.toLowerCase().includes('short')?'length'
+      :c.head.toLowerCase().includes('long')?'length'
+      :c.head.toLowerCase().includes('press') && !c.head.toLowerCase().includes('opp')?'press'
+      :c.head.toLowerCase().includes('hold')||c.head.toLowerCase().includes('retention')?'retention'
+      :c.head.toLowerCase().includes('turnover')||c.head.toLowerCase().includes('touch')?'imm'
+      :c.head.toLowerCase().includes('avoid')||c.head.toLowerCase().includes('risk')?'badcall'
+      :'other';
+    if(!usedTopics.has(topic)){
+      usedTopics.add(topic);
+      chosen.push(c);
+      if(chosen.length===3) break;
     }
-  ];
+  }
+  // Pad to 3 if needed
+  for(const c of candidates){
+    if(chosen.length>=3) break;
+    if(!chosen.includes(c)) chosen.push(c);
+  }
+
+  // Attach trend tags — use the precise KPI key matching each insight type
+  // so the trend reflects the exact metric shown, not a proxy.
+  candidates.forEach(c=>{
+    c.trend='';
+    const h=c.head.toLowerCase();
+    if(h.includes('short')||h.includes('undefeated'))
+      c.trend=buildTrendTag('short');        // Short KO win% trend
+    else if(h.includes('long')||h.includes('high risk'))
+      c.trend=buildTrendTag('long');         // Long KO win% trend
+    else if(h.includes('under press')||h.includes('hold shape'))
+      c.trend=buildTrendTag('heavy');        // Heavy-press win% trend
+    else if(h.includes('retention')||h.includes('hold it')||h.includes('protect'))
+      c.trend=buildTrendTag('twophase');     // 2-phase retention trend
+    else if(h.includes('first touch')||h.includes('stay calm'))
+      c.trend=buildTrendTag('imm');          // Immediate TO% trend (lower=better)
+    else if(h.includes('press harder')||h.includes("it's working")||h.includes('press '))
+      c.trend=buildTrendTag('oppTO');        // Opp turnover% trend
+    else if(h.includes('go-to call')||h.includes('avoid'))
+      c.trend=buildTrendTag('own');          // Overall win% as proxy for call trends
+  });
 
   const container=document.getElementById('matchday-principles');
   if(!container) return;
-  container.innerHTML=principles.map((p,i)=>`
+  container.innerHTML=chosen.slice(0,3).map((p,i)=>`
     <div class="principle-item">
       <div class="principle-num">${i+1}</div>
       <div class="principle-body" style="flex:1">
         <h3>${p.head}</h3>
         <p>${p.body}</p>
       </div>
-      <div class="principle-stat" style="color:${p.col}">${p.stat}</div>
+      <div style="text-align:right;flex-shrink:0;padding-left:10px">
+        <div class="principle-stat" style="color:${p.col}">${p.stat}</div>
+        <div style="line-height:1">${p.trend||''}</div>
+      </div>
     </div>`).join('');
 }
 
@@ -1781,12 +2049,19 @@ function getSparklineData(kpi){
     if(!md) return null;
     const m=md.mkl, o=md.opp;
     switch(kpi){
-      case 'own': return pct(m.won,m.total);
-      case 'twophase': return m.twoPhasePct;
-      case 'oppTO': return pct(o.lost,o.total);
-      case 'posatt': return m.exitSuccess;
-      case 'cleanp': return pct(m.cleanPoss,m.won);
-      case 'imm': return pct(m.retention.immediate,m.won);
+      case 'own':     return pct(m.won,m.total);
+      case 'twophase':return m.twoPhasePct;
+      case 'oppTO':   return pct(o.lost,o.total);
+      case 'posatt':  return m.exitSuccess;
+      case 'cleanp':  return pct(m.cleanPoss,m.won);
+      case 'imm':     return pct(m.retention.immediate,m.won);
+      // Length-specific win rates
+      case 'short':   return m.byLength.S?.t>=1 ? pct(m.byLength.S.w,m.byLength.S.t) : null;
+      case 'long':    return m.byLength.L?.t>=1 ? pct(m.byLength.L.w,m.byLength.L.t) : null;
+      case 'mid':     return m.byLength.M?.t>=1 ? pct(m.byLength.M.w,m.byLength.M.t) : null;
+      // Pressure-specific win rates
+      case 'heavy':   return m.pressure.heavy.t>=1 ? pct(m.pressure.heavy.w,m.pressure.heavy.t) : null;
+      case 'light':   return m.pressure.light.t>=1 ? pct(m.pressure.light.w,m.pressure.light.t) : null;
     }
     return null;
   }).filter(v=>v!==null);
@@ -1884,38 +2159,106 @@ function renderToCause(){
   const container=document.getElementById('to-cause-section');
   if(!container) return;
 
-  // Count execution vs decision vs pressure
-  const causes={Execution:0,Decision:0,Pressure:0,Unknown:0};
-  const toCauses={};
-  rows.filter(r=>r['Outcome (Primary)']==='Lost').forEach(r=>{
-    const cause=(r['Turnover Cause \u2013 Execution']||'').trim();
-    if(!cause){ causes.Unknown++; return; }
-    toCauses[cause]=(toCauses[cause]||0)+1;
-    const cl=cause.toLowerCase();
-    if(cl.includes('execution')||cl.includes('poor')||cl.includes('mis')) causes.Execution++;
-    else if(cl.includes('decision')||cl.includes('choice')) causes.Decision++;
-    else if(cl.includes('press')||cl.includes('pressure')||cl.includes('tackle')) causes.Pressure++;
-    else causes.Unknown++;
+  const lostRows=rows.filter(r=>r['Outcome (Primary)']==='Lost');
+  const totalLost=lostRows.length;
+  if(totalLost===0){ container.innerHTML=''; return; }
+
+  // ── Correct categorisation using the actual coded values ──
+  // GK errors: "GK – ..." prefix
+  // Opponent: "Opponent – ..." prefix
+  // Receiver: "Receiver – ..." prefix
+  // Blank: Uncoded
+  const cats={GK:0,Opponent:0,Receiver:0,Uncoded:0};
+  const rawCauses={};
+
+  lostRows.forEach(r=>{
+    const cause=(r['Turnover Cause – Execution']||'').trim();
+    if(!cause||cause==='nan'){ cats.Uncoded++; return; }
+    rawCauses[cause]=(rawCauses[cause]||0)+1;
+    if(cause.startsWith('GK')) cats.GK++;
+    else if(cause.startsWith('Opponent')) cats.Opponent++;
+    else if(cause.startsWith('Receiver')) cats.Receiver++;
+    else cats.Uncoded++;
   });
 
-  const topCauses=Object.entries(toCauses).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  if(topCauses.length===0){ container.innerHTML=''; return; }
-  const totalLost=rows.filter(r=>r['Outcome (Primary)']==='Lost').length;
+  const codedTotal=cats.GK+cats.Opponent+cats.Receiver;
+  const topRaw=Object.entries(rawCauses).sort((a,b)=>b[1]-a[1]).slice(0,4);
 
-  container.innerHTML=`
-    <div class="chart-card">
-      <div class="chart-title">&#128308; Turnover Cause Breakdown</div>
-      <div class="chart-sub">Why are we losing kickouts? (${totalLost} lost kickouts)</div>
+  // Only render if we have coded causes
+  if(codedTotal===0 && topRaw.length===0){ container.innerHTML=''; return; }
+
+  // Category summary bars
+  const catRows=[
+    {label:'GK Decision / Execution', n:cats.GK, icon:'🧤',
+     desc: cats.GK>0 ? 'Poor kick or poor option selection by goalkeeper' : ''},
+    {label:'Opponent Superior Contest', n:cats.Opponent, icon:'🏃',
+     desc: cats.Opponent>0 ? 'Opposition won the physical contest for the ball' : ''},
+    {label:'Receiver Error', n:cats.Receiver, icon:'✋',
+     desc: cats.Receiver>0 ? 'Poor first touch, misread, or handling error by receiver' : ''},
+  ].filter(r=>r.n>0);
+
+  const maxCat=Math.max(...catRows.map(r=>r.n),1);
+
+  const catHTML=catRows.length>0 ? `
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">By Category</div>
+      ${catRows.map(r=>{
+        const pct2=Math.round(r.n/totalLost*100);
+        const barW=Math.round(r.n/maxCat*100);
+        return `<div class="bench-row" style="padding:7px 0">
+          <div class="bench-label" style="min-width:200px;font-size:12px">${r.icon} ${r.label}</div>
+          <div class="bench-val" style="color:var(--red);min-width:28px">${r.n}</div>
+          <div class="bench-bar-wrap">
+            <div class="bench-bar" style="width:${barW}%;background:var(--red)"></div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);min-width:40px;text-align:right">${pct2}%</div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  // Individual raw cause cards
+  const rawHTML=topRaw.length>0 ? `
+    <div>
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Specific Causes</div>
       <div class="to-cause-grid">
-        ${topCauses.map(([cause,n])=>{
+        ${topRaw.map(([cause,n])=>{
           const pct2=Math.round(n/totalLost*100);
+          const isGK=cause.startsWith('GK');
+          const isOpp=cause.startsWith('Opponent');
+          const col=isGK?'var(--amber)':isOpp?'var(--accent)':'var(--red)';
+          const label=cause.replace('GK – ','').replace('Opponent – ','').replace('Receiver – ','');
           return `<div class="to-cause-card">
-            <div class="to-cause-val" style="color:var(--red)">${n}</div>
-            <div class="to-cause-lbl">${cause||'Uncoded'}</div>
+            <div class="to-cause-val" style="color:${col}">${n}</div>
+            <div class="to-cause-lbl">${label}</div>
             <div style="font-size:10px;color:var(--muted);margin-top:2px">${pct2}% of lost KOs</div>
           </div>`;
         }).join('')}
       </div>
+    </div>` : '';
+
+  // Coaching insight
+  const topCat=catRows.length>0?catRows.sort((a,b)=>b.n-a.n)[0]:null;
+  const insightText=topCat
+    ? topCat.label.includes('GK')
+      ? `GK decision-making is the primary cause of lost kickouts (${topCat.n}/${totalLost}). Focus training on option recognition under pressure and go/no-go decision timing.`
+      : topCat.label.includes('Opponent')
+      ? `Physical contest is the primary cause (${topCat.n}/${totalLost}). Review targeting — avoid zones where opposition are winning aerial battles.`
+      : `Receiver handling errors are the primary cause (${topCat.n}/${totalLost}). Reduce contested catches — target clean-catch positions and free runners.`
+    : cats.Uncoded===totalLost
+    ? `All lost kickouts are uncoded. Add causes to the Google Sheet to unlock this analysis.`
+    : '';
+
+  const insightHTML=insightText?`
+    <div style="margin-top:14px;background:rgba(248,81,73,.07);border:1px solid rgba(248,81,73,.2);
+      border-radius:8px;padding:11px 14px;font-size:12px;color:var(--text);line-height:1.6">
+      <strong style="color:var(--red)">&#128270; Coaching Takeaway —</strong> ${insightText}
+    </div>`:'';
+
+  container.innerHTML=`
+    <div class="chart-card">
+      <div class="chart-title">&#128308; Turnover Cause Breakdown</div>
+      <div class="chart-sub">Why are we losing kickouts? (${totalLost} lost &middot; ${codedTotal} coded &middot; ${cats.Uncoded} uncoded)</div>
+      ${catHTML}${rawHTML}${insightHTML}
     </div>`;
 }
 
@@ -1966,7 +2309,8 @@ function renderOppTacticalBreakdown(){
 
 // ══ SEASON HERO SECTION ══
 function renderSeasonHero(){
-  // Only show on "All Matches" view
+  // Only show on Player view + All Matches — not on Coach/Glossary/Video tabs
+  // where it creates visual clutter without adding context.
   const d=getD();
   let heroEl=document.getElementById('season-hero-section');
   if(!heroEl){
@@ -1975,7 +2319,7 @@ function renderSeasonHero(){
     const page=document.querySelector('#main-page .page');
     if(page) page.prepend(heroEl);
   }
-  if(currentMatch!=='all'){ heroEl.innerHTML=''; return; }
+  if(currentMatch!=='all' || currentView!=='players'){ heroEl.innerHTML=''; return; }
 
   const m=d.mkl,o=d.opp;
   const mklPct=pct(m.won,m.total);
@@ -1987,7 +2331,7 @@ function renderSeasonHero(){
 
   heroEl.innerHTML=`
     <div class="season-hero" style="margin:16px 0 0">
-      <img class="season-hero-crest" src="${CREST_SRC}" alt="MKL Gaels">
+      <img class="season-hero-crest" src="${getCrestSrc()}" alt="MKL Gaels">
       <div class="season-hero-body">
         <div class="season-hero-title">MKL GAELS LGFA</div>
         <div class="season-hero-sub">Kerry Intermediate &middot; ${matchIds.length} Match${matchIds.length!==1?'es':''} &middot; ${m.total} Kickouts Analysed</div>
@@ -2585,8 +2929,8 @@ function renderPossBreakdown(){
       {label:'Won', data:wonData, backgroundColor:'#3fb95099', borderColor:'#3fb950', borderWidth:2, borderRadius:4, stack:'s'},
       {label:'Lost',data:lostData,backgroundColor:'#f8514999', borderColor:'#f85149', borderWidth:2, borderRadius:4, stack:'s'},
     ],{legend:true, extra:{plugins:{title:{display:true,text:title,color:'#8b949e',font:{size:11}}},
-      scales:{x:{stacked:true,grid:{color:'#21262d'},ticks:{color:'#8b949e',font:{size:10}}},
-              y:{stacked:true,grid:{color:'#21262d'},ticks:{color:'#8b949e',font:{size:10}},beginAtZero:true,
+      scales:{x:{stacked:true,grid:{color:'#182119'},ticks:{color:'#7a9a82',font:{size:10}}},
+              y:{stacked:true,grid:{color:'#182119'},ticks:{color:'#8b949e',font:{size:10}},beginAtZero:true,
                  title:{display:true,text:'Kickout Count',color:'#8b949e',font:{size:10}}}}}});
   }
 
@@ -2916,7 +3260,7 @@ function buildCardPreview(){
   <div class="wa-card-preview" id="wa-card">
     <div style="background:linear-gradient(135deg,#0d3b1e,#1a5c35);padding:16px 18px;
       display:flex;align-items:center;gap:12px;border-bottom:2px solid rgba(46,168,67,.4)">
-      <img src="${CREST_SRC}" style="width:38px;height:38px;border-radius:50%;
+      <img src="${getCrestSrc()}" style="width:38px;height:38px;border-radius:50%;
         border:2px solid #2ea843" alt="MKL">
       <div>
         <div style="font-size:15px;font-weight:700;color:#fff">MKL Gaels &#8212; Kickout Focus</div>
@@ -3052,6 +3396,8 @@ function setView(v){
   document.getElementById('glossary-view').style.display=v==='glossary'?'block':'none';
   document.getElementById('clips-view').style.display=v==='clips'?'block':'none';
   if(v==='coaches' && MATCHES['all']) setCoachGroup('matchday');
+  // Re-evaluate season hero visibility when view changes
+  if(MATCHES['all']) renderSeasonHero();
 }
 
 const obs=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible');}),{threshold:0.06});
