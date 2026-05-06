@@ -1034,6 +1034,8 @@ tr:hover td{background:var(--surface2)}
 </div>
 
 <script>
+// MKL Gaels Dashboard — built 2026-05-06 11:42:04
+
 // MKL Gaels Dashboard — built 2026-04-01 10:01:32
 
 // MKL Gaels Dashboard — built 2026-03-30 10:33:55
@@ -1600,7 +1602,16 @@ async function loadData(manual=false){
     // Debug: log first few rows to confirm parsing
     console.log('Rows parsed:',RAW.length);
     if(RAW.length>0) console.log('First row keys:',Object.keys(RAW[0]));
-    if(RAW.length===0) throw new Error('No data rows found — check sheet has data in "Master Sheet" tab');
+    if(RAW.length===0){
+      // Live source returned data but all rows failed validation
+      // Fall back to embedded data if available
+      if(EMBEDDED_DATA && EMBEDDED_DATA.length){
+        window._usingEmbedded=true;
+        const embCsv=embeddedDataToCSV();
+        if(embCsv){ RAW=parseCSV(embCsv); }
+      }
+      if(RAW.length===0) throw new Error('No data rows found — check sheet has data in "Master Sheet" tab');
+    }
 
     const result=buildMatchData(RAW);
     MATCHES=result.data;
@@ -3421,6 +3432,7 @@ document.querySelectorAll('.section').forEach(s=>obs.observe(s));
 
 setInterval(()=>loadData(false),5*60*1000);
 loadData();
+
 
 
 
